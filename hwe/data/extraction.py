@@ -1,14 +1,14 @@
 
 import requests
-from .schemas import NewsPaper, DetailedIssue
+from .schemas import NewsPaper, DetailedIssue, CompiledDoc
 from itertools import islice
 from typing import List
 import os
 import xml.etree.ElementTree as ET
-import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from collections import Counter
+import re
 
 
 class NewsPaperExtractorOcr:
@@ -109,26 +109,45 @@ class NewsPaperExtractorXml:
         self.stopwords_list = set(stopwords.words('english'))
         self.compiled_docs = {}
 
-    def word_frequency(self,
+    def __word_frequency(self,
                        text: str,
                        top_k: int) -> dict:
         # Tokenize the text
         tokens = word_tokenize(text.lower())
         unique_words = [word for word in tokens if word.isalpha() and word not in self.stopwords_list]
+        top_words = Counter(unique_words).most_common(top_k)
 
-        return Counter(unique_words).most_common(top_k)
+        return [w[0] for w in top_words]
 
     def __get_children_tags(self, root: ET.Element) -> List[str]:
         return [child.tag for child in root]
 
-    def get_text(self):
-        tree = ET.parse(self.docs[0])
+    def format_doc(self, file: os.PathLike) -> None:
+        tree = ET.parse(file)
         root = tree.getroot()
+
+        compiled_doc = {}
+        # Take the 4 digits representing the year from the file name, use regex
+        pattern = re.compile(r'\d{4}')
+        try:
+            year = pattern.search(file).group()
+        except AttributeError:
+            year = 'NotSpecified'
+
+        compiled_doc['year'] = year
+        compiled_doc['articles'] = []
+        compiled_doc['top_words'] = []
 
         for record in root.findall('record'):
             if 'title' in self.__get_children_tags(record) and \
                 'fulltext' in self.__get_children_tags(record):
-                yield record.find('fulltext').text
+                obj = CompiledDoc(**{
+                    'title': record.find('title').text,
+                    'fulltext': record.find('fulltext').text
+                })
+                compiled_doc['articles'] += [obj]
+                compiled_doc['top_words'] = self.__word_frequency(obj.fulltext, 5)
+        yield compiled_doc
 
 
 

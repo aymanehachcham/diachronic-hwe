@@ -31,3 +31,7 @@ class NewsPaper(BaseModel):
     name: str
     publisher: str
     issues: list[Issue]
+
+class CompiledDoc(BaseModel):
+    title: str
+    fulltext: str
