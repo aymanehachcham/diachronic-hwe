@@ -4,7 +4,14 @@ from .schemas import NewsPaper, DetailedIssue
 from itertools import islice
 from typing import List
 import os
-class NewsPapersExtractor:
+import xml.etree.ElementTree as ET
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from collections import Counter
+
+
+class NewsPaperExtractorOcr:
     """
     This class is used to extract data from the Chronicling America API.
     """
@@ -89,6 +96,46 @@ class NewsPapersExtractor:
             return
 
         return pages
+
+class NewsPaperExtractorXml:
+    def __init__(self,
+                 root_dir: os.PathLike):
+        if not os.path.exists(root_dir):
+            raise ValueError(
+                f'Error: {root_dir} does not exist'
+            )
+        # Extract all files from the root directory
+        self.docs = [os.path.join(root_dir, file) for file in os.listdir(root_dir)]
+        self.stopwords_list = set(stopwords.words('english'))
+        self.compiled_docs = {}
+
+    def word_frequency(self,
+                       text: str,
+                       top_k: int) -> dict:
+        # Tokenize the text
+        tokens = word_tokenize(text.lower())
+        unique_words = [word for word in tokens if word.isalpha() and word not in self.stopwords_list]
+
+        return Counter(unique_words).most_common(top_k)
+
+    def __get_children_tags(self, root: ET.Element) -> List[str]:
+        return [child.tag for child in root]
+
+    def get_text(self):
+        tree = ET.parse(self.docs[0])
+        root = tree.getroot()
+
+        for record in root.findall('record'):
+            if 'title' in self.__get_children_tags(record) and \
+                'fulltext' in self.__get_children_tags(record):
+                yield record.find('fulltext').text
+
+
+
+
+
+
+
 
 
 
