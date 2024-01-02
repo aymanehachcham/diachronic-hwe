@@ -135,8 +135,6 @@ class NewsPaperExtractorXml:
             year = 'NotSpecified'
 
         compiled_doc['year'] = year
-        compiled_doc['articles'] = []
-        compiled_doc['top_words'] = []
 
         for record in root.findall('record'):
             if 'title' in self.__get_children_tags(record) and \
@@ -145,9 +143,7 @@ class NewsPaperExtractorXml:
                     'title': record.find('title').text,
                     'fulltext': record.find('fulltext').text
                 })
-                compiled_doc['articles'] += [obj]
-                compiled_doc['top_words'] = self.__word_frequency(obj.fulltext, 5)
-        yield compiled_doc
+                print(obj)
 
 
 
