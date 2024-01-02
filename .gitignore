@@ -6,3 +6,4 @@ site/
 .DS_Store
 The New York herald. [volume]/
 sample_data/
+*.json
