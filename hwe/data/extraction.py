@@ -9,6 +9,11 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from collections import Counter
 import re
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 
 class NewsPaperExtractorOcr:
@@ -104,10 +109,38 @@ class NewsPaperExtractorXml:
             raise ValueError(
                 f'Error: {root_dir} does not exist'
             )
+
         # Extract all files from the root directory
         self.docs = [os.path.join(root_dir, file) for file in os.listdir(root_dir)]
         self.stopwords_list = set(stopwords.words('english'))
         self.compiled_docs = {}
+
+    def extract_xml(self,
+                    doc_index: int,
+                    tag: str):
+
+        logging.info(f'Extracting {tag} from {self.docs[doc_index]}')
+        root = ET.parse(self.docs[doc_index]).getroot()
+        texts = []
+        for elem in root.findall('.//' + tag):
+            if isinstance(elem.text, str):
+                texts += [elem.text]
+        return texts
+
+    def doc_retrieval(self,
+                      target_word: str,
+                        top_k: int = 10) -> List[str]:
+        pass
+
+    def __format_text(self,
+                        text: str) -> str:
+        # Remove line breaks
+        text = text.replace('\n', ' ')
+
+        # Remove non-alphanumeric characters
+        text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
+        return text.lower()
+
 
     def __word_frequency(self,
                        text: str,
