@@ -2,15 +2,19 @@
 import requests
 from .schemas import NewsPaper, DetailedIssue, CompiledDoc
 from itertools import islice
-from typing import List
+from typing import List, Optional
 import os
 import xml.etree.ElementTree as ET
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
+from nltk.tokenize import RegexpTokenizer
 from collections import Counter
 import re
 import logging
+from tqdm import tqdm
+from dotenv import load_dotenv
+import json
 
+load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -103,80 +107,81 @@ class NewsPaperExtractorOcr:
         return pages
 
 class NewsPaperExtractorXml:
-    def __init__(self,
-                 root_dir: os.PathLike):
-        if not os.path.exists(root_dir):
-            raise ValueError(
-                f'Error: {root_dir} does not exist'
-            )
+    def __init__(self):
+        raise NotImplementedError(
+            'Use the class method from_xml to initialize this class'
+        )
 
-        # Extract all files from the root directory
-        self.docs = [os.path.join(root_dir, file) for file in os.listdir(root_dir)]
-        self.stopwords_list = set(stopwords.words('english'))
-        self.compiled_docs = {}
-
-    def extract_xml(self,
-                    doc_index: int,
-                    tag: str):
-
-        logging.info(f'Extracting {tag} from {self.docs[doc_index]}')
-        root = ET.parse(self.docs[doc_index]).getroot()
-        texts = []
-        for elem in root.findall('.//' + tag):
-            if isinstance(elem.text, str):
-                texts += [elem.text]
-        return texts
-
-    def doc_retrieval(self,
-                      target_word: str,
-                        top_k: int = 10) -> List[str]:
-        pass
-
-    def __format_text(self,
-                        text: str) -> str:
+    @staticmethod
+    def __format_text(text: str) -> str:
         # Remove line breaks
         text = text.replace('\n', ' ')
 
         # Remove non-alphanumeric characters
-        text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
-        return text.lower()
+        text = re.sub(r'[^a-zA-Z0-9,. -]', '', text)
+        return text
 
+    @staticmethod
+    def __word_frequency(
+            text: str,
+            top_k: int = 10
+    ) -> dict:
 
-    def __word_frequency(self,
-                       text: str,
-                       top_k: int) -> dict:
+        # Remove stopwords
+        stopwords_list = set(stopwords.words('english'))
+        tokenizer = RegexpTokenizer(r'\b\w{3,}\b')
+
         # Tokenize the text
-        tokens = word_tokenize(text.lower())
-        unique_words = [word for word in tokens if word.isalpha() and word not in self.stopwords_list]
-        top_words = Counter(unique_words).most_common(top_k)
+        tokens = tokenizer.tokenize(text.lower())
+        word_counts = Counter(tokens)
+        for stopword in stopwords_list:
+            del word_counts[stopword]
 
+        # Get the top k words
+        top_words = word_counts.most_common(top_k)
         return [w[0] for w in top_words]
 
-    def __get_children_tags(self, root: ET.Element) -> List[str]:
-        return [child.tag for child in root]
+    @classmethod
+    def from_xml(
+            cls,
+            file_path: os.PathLike
+    ) -> None:
 
-    def format_doc(self, file: os.PathLike) -> None:
-        tree = ET.parse(file)
-        root = tree.getroot()
+        if not os.path.exists(file_path):
+            raise ValueError(f'Error: {file_path} does not exist')
 
-        compiled_doc = {}
-        # Take the 4 digits representing the year from the file name, use regex
-        pattern = re.compile(r'\d{4}')
-        try:
-            year = pattern.search(file).group()
-        except AttributeError:
-            year = 'NotSpecified'
+        root = ET.parse(file_path).getroot()
+        docs = []
+        elements = root.findall('.//*[title][fulltext]')
+        for elem in tqdm(elements, desc=f'Extracting documents from: {file_path}'):
+            if elem.find('title').text is not None and elem.find('fulltext').text is not None:
+                title = cls.__format_text(elem.find('title').text)
+                fulltext = cls.__format_text(elem.find('fulltext').text)
+                top_words = cls.__word_frequency(fulltext)
 
-        compiled_doc['year'] = year
+                docs += [CompiledDoc(
+                    title=title,
+                    fulltext=fulltext,
+                    top_words=top_words
+                ).model_dump()]
 
-        for record in root.findall('record'):
-            if 'title' in self.__get_children_tags(record) and \
-                'fulltext' in self.__get_children_tags(record):
-                obj = CompiledDoc(**{
-                    'title': record.find('title').text,
-                    'fulltext': record.find('fulltext').text
-                })
-                print(obj)
+        save_dir = os.getenv('COMPILED_DOCS_PATH')
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
+
+        saved_file = file_path.__str__().split('/')[-1].split('.')[0] + '.json'
+        with open(os.path.join(save_dir,saved_file), 'w') as f:
+            json.dump(docs, f, indent=4)
+
+        return
+
+    def doc_retrieval(
+            self,
+            target_word: str,
+            top_k: int = 10
+    ) -> List[str]:
+
+        pass
 
 
 
