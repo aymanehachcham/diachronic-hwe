@@ -5,8 +5,6 @@ import json
 
 
 if __name__ == '__main__':
-   extractor = NewsPaperExtractorXml(
-       root_dir='sample_data')
-
-   doc = extractor.docs[0]
-   extractor.format_doc(doc)
+   docs = NewsPaperExtractorXml.from_xml(
+       file_path='sample_data/TheNewYorkTimes1980.xml',
+   )
