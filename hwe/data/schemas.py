@@ -35,4 +35,3 @@ class NewsPaper(BaseModel):
 class CompiledDoc(BaseModel):
     title: str
     fulltext: str
-    top_words: List[str]

@@ -2,12 +2,9 @@
 import requests
 from .schemas import NewsPaper, DetailedIssue, CompiledDoc
 from itertools import islice
-from typing import List, Optional
+from typing import List
 import os
 import xml.etree.ElementTree as ET
-from nltk.corpus import stopwords
-from nltk.tokenize import RegexpTokenizer
-from collections import Counter
 import re
 import logging
 from tqdm import tqdm
@@ -121,26 +118,6 @@ class NewsPaperExtractorXml:
         text = re.sub(r'[^a-zA-Z0-9,. -]', '', text)
         return text
 
-    @staticmethod
-    def __word_frequency(
-            text: str,
-            top_k: int = 10
-    ) -> dict:
-
-        # Remove stopwords
-        stopwords_list = set(stopwords.words('english'))
-        tokenizer = RegexpTokenizer(r'\b\w{3,}\b')
-
-        # Tokenize the text
-        tokens = tokenizer.tokenize(text.lower())
-        word_counts = Counter(tokens)
-        for stopword in stopwords_list:
-            del word_counts[stopword]
-
-        # Get the top k words
-        top_words = word_counts.most_common(top_k)
-        return [w[0] for w in top_words]
-
     @classmethod
     def from_xml(
             cls,
@@ -157,12 +134,10 @@ class NewsPaperExtractorXml:
             if elem.find('title').text is not None and elem.find('fulltext').text is not None:
                 title = cls.__format_text(elem.find('title').text)
                 fulltext = cls.__format_text(elem.find('fulltext').text)
-                top_words = cls.__word_frequency(fulltext)
 
                 docs += [CompiledDoc(
                     title=title,
-                    fulltext=fulltext,
-                    top_words=top_words
+                    fulltext=fulltext
                 ).model_dump()]
 
         save_dir = os.getenv('COMPILED_DOCS_PATH')
