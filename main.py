@@ -1,10 +1,11 @@
 
 
 from hwe.data.extraction import NewsPaperExtractorXml
-import json
+from hwe.data.processor import DocumentProcessor
 
 
 if __name__ == '__main__':
-   docs = NewsPaperExtractorXml.from_xml(
-       file_path='sample_data/TheNewYorkTimes1980.xml',
-   )
+   txt = DocumentProcessor(
+       file_path='post_process_data/compiled_docs/TheNewYorkTimes1980.json'
+   ).most_frequent_w()
+   print(txt)
