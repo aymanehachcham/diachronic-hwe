@@ -1,4 +1,3 @@
-
 from PIL import Image, ImageFilter, ImageEnhance
 
 # function that converts jp2 to png keeping a high quality and resolution
