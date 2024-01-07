@@ -6,9 +6,11 @@ from .extraction import NewsPaperExtractorXml
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
 from collections import Counter
+from typing import List
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 class DocumentProcessor:
     """
     Class that takes the extracted raw documents and analyses the word frequencies,
@@ -22,6 +24,9 @@ class DocumentProcessor:
             raise FileNotFoundError(
                 f'File {file_path} does not exist.'
             )
+            
+        self.file_path = file_path
+        self.docs = []
         # Detect if the file path comes from the post_process dir:
         if not 'post_process_data' in file_path:
             logging.warning(
@@ -31,28 +36,27 @@ class DocumentProcessor:
             NewsPaperExtractorXml.from_xml(
                 file_path=file_path,
             )
-
-        self.file_path = file_path
-        self.docs = []
+            file_name = os.path.basename(file_path).replace('.xml', '.json')
+            self.file_path = os.path.join(os.getenv('COMPILED_DOCS_PATH'), file_name)    
 
     @staticmethod
     def __word_frequency(
             text: str,
             top_freq: int = 20
-    ) -> dict:
+    ) -> List[str]:
 
         # Remove stopwords
-        stopwords_list = set(stopwords.words('english'))
+        stopwords_set = set(stopwords.words('english'))
         tokenizer = RegexpTokenizer(r'\b\w{3,}\b')
 
         # Tokenize the text
         tokens = tokenizer.tokenize(text.lower())
         word_counts = Counter(tokens)
-        for stopword in stopwords_list:
+        for stopword in stopwords_set:
             del word_counts[stopword]
 
         # Get words with frequency higher than top_freq
-        return [word for word, count in word_counts.items() if count > top_freq]
+        return [word for word, count in word_counts.items() if count == top_freq][:50]
 
     def __compile_docs(self):
         """
@@ -60,8 +64,15 @@ class DocumentProcessor:
         """
         pattern = r'(?<=\.)\s+$'
 
-        with open(self.file_path, 'r') as f:
-            articles = json.load(f)
+        try:
+            with open(self.file_path, 'r') as f:
+                articles = json.load(f)
+        except json.JSONDecodeError as e:
+            logger.error(e)
+            raise ValueError(
+                f'Error: {self.file_path} is not a valid json file.'
+            )
+        
         self.docs = [art['fulltext'] for art in articles]
 
         txt =  '.'.join(self.docs)
@@ -75,6 +86,9 @@ class DocumentProcessor:
         """
         txt = self.__compile_docs()
         return self.__word_frequency(txt)
+        
+
+        
 
 
 
