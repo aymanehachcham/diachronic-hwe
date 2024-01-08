@@ -23,6 +23,7 @@ class DocumentProcessor:
     Class that takes the extracted raw documents and analyses the word frequencies,
     and other statistics relevant for further analysis.
     """
+    _openai_token_limit: int = 150_000
 
     def __init__(
             self,
@@ -81,7 +82,7 @@ class DocumentProcessor:
                 f'Error: {self.file_path} is not a valid json file.'
             )
 
-        self.docs = [art['fulltext'] for art in articles]
+        self.docs = [art['fulltext'][:self._openai_token_limit] for art in articles]
 
         txt = '.'.join(self.docs)
         txt = re.sub(pattern, '', txt, flags=re.MULTILINE)
@@ -125,13 +126,13 @@ class DocumentProcessor:
         """
         splitter = CharacterTextSplitter(
             chunk_size=1000, 
-            chunk_overlap=0,
+            chunk_overlap=200,
             add_start_index=True,
             )
         txt = self.__compile_docs()
         docs = [Document(page_content=doc) for doc in splitter.split_text(txt)]
         
-        retriever = self.__v_store(docs)
+        retriever = self.__v_store(docs[:2])
         return retriever.get_relevant_documents(query)
     
 
