@@ -7,7 +7,8 @@ if __name__ == '__main__':
 
     txt = DocumentProcessor(
         file_path='post_process_data/compiled_docs/TheNewYorkTimes1980.json'
-    ).extract_hyponyms('abuse')
+    ).retrieve_docs('abuse')
+    
     print(txt)
 
 
