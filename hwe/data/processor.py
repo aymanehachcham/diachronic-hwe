@@ -9,6 +9,11 @@ from collections import Counter
 from typing import List
 from nltk.corpus import wordnet as wn
 
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import Chroma
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.schema import Document
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -96,13 +101,38 @@ class DocumentProcessor:
 
         return hyponyms
     
-    def most_frequent_w(self):
+    def __v_store(self, docs: List[Document], top_k: int = 6):
         """
-        Get words with a min frequency of 10 that are not stopwords.
+        Generate a vector store for the documents.
         """
+        logging.info('Generating vector store...')        
+        vector_store = Chroma.from_documents(
+            documents=docs,
+            embedding=OpenAIEmbeddings(
+                openai_api_key=os.getenv('OPENAI_API_KEY')
+                )
+            )
+        
+        return vector_store.as_retriever(
+            search_type='similarity',
+            search_kwargs={"k": top_k}
+        )
+        
+    
+    def retrieve_docs(self, query: str) -> List[str]:
+        """
+        Retrieve documents that contain a given word.
+        """
+        splitter = CharacterTextSplitter(
+            chunk_size=1000, 
+            chunk_overlap=0,
+            add_start_index=True,
+            )
         txt = self.__compile_docs()
-        return self.__word_frequency(txt)
-
+        docs = [Document(page_content=doc) for doc in splitter.split_text(txt)]
+        
+        retriever = self.__v_store(docs)
+        return retriever.get_relevant_documents(query)
     
 
 
