@@ -1,0 +1,103 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        stages: [manual,commit]
+        files: \.(ts|tf|xml|scss|html|py|json|yaml|yml|jinja2)$
+      - id: end-of-file-fixer
+        stages: [manual,commit]
+        files: \.(ts|tf|xml|scss|html|py|json|yaml|yml|jinja2)$
+      - id: check-yaml
+        stages: [manual,commit]
+        args: [--allow-multiple-documents]
+        exclude: ^k8s-ops/
+      - id: debug-statements
+        stages: [manual,commit]
+      - id: check-docstring-first
+        stages: [manual,commit]
+      - id: check-added-large-files
+        stages: [manual,commit]
+        args: ["--maxkb=2048"]
+      - id: check-symlinks
+        stages: [manual,commit]
+      - id: destroyed-symlinks
+        stages: [manual,commit]
+      - id: check-shebang-scripts-are-executable
+        stages: [commit]
+      - id: check-toml
+        stages: [manual,commit]
+      - id: check-merge-conflict
+        stages: [manual,commit]
+      - id: check-json
+        stages: [manual,commit]
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.10.1
+    hooks:
+    - id: pyupgrade
+      stages: [manual,commit]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+    - id: isort
+      stages: [manual,commit]
+      args: ["--profile", "black", "--filter-files", "--combine-as"]
+
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+    - id: black
+      stages: [manual,commit]
+      args: [--line-length=120]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+    - id: flake8
+      stages: [manual,commit]
+      args: [
+          "--max-line-length=120",
+        ]
+
+  - repo: https://github.com/pycqa/pylint
+    rev: v2.17.5
+    hooks:
+      - id: pylint
+        stages: [manual,commit]
+        args:
+          - >-
+            --disable=no-name-in-module,
+                      import-error,
+                      missing-module-docstring,
+                      too-few-public-methods,
+                      unnecessary-pass,
+                      invalid-name,
+                      duplicate-code,
+                      logging-fstring-interpolation,
+                      unused-argument,
+                      redefined-builtin,
+          - "--py-version=3.10"
+          - "--min-public-methods=1"
+          - "--max-line-length=120"
+          - "--max-attributes=15"
+          - "--notes=FIXME,XXX"
+          # reporting of "builtins.Exception" as overgeneral-exception disabled for now
+          - "--overgeneral-exceptions=builtins.BaseException"
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        stages: [ commit ]
+        language: system
+        pass_filenames: false  # pytest will discover tests on its own
+        entry: poetry run pytest
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        stages: [manual, commit]
+        args: [--skip, "B101", --recursive, --quiet, --format, "custom"]
