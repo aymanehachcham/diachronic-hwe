@@ -86,14 +86,6 @@ repos:
           # reporting of "builtins.Exception" as overgeneral-exception disabled for now
           - "--overgeneral-exceptions=builtins.BaseException"
 
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        stages: [ commit ]
-        language: system
-        pass_filenames: false  # pytest will discover tests on its own
-        entry: poetry run pytest
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.5
