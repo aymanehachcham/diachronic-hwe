@@ -78,6 +78,8 @@ repos:
                       logging-fstring-interpolation,
                       unused-argument,
                       redefined-builtin,
+                      unused-private-member,
+                      unspecified-encoding
           - "--py-version=3.10"
           - "--min-public-methods=1"
           - "--max-line-length=120"
