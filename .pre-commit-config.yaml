@@ -79,7 +79,8 @@ repos:
                       unused-argument,
                       redefined-builtin,
                       unused-private-member,
-                      unspecified-encoding
+                      unspecified-encoding,
+                      no-member
           - "--py-version=3.10"
           - "--min-public-methods=1"
           - "--max-line-length=120"
