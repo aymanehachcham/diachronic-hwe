@@ -20,6 +20,7 @@ langchain = "^0.1.0"
 openai = "^1.6.1"
 chromadb = "^0.4.22"
 tiktoken = "^0.5.2"
+sentence-transformers = "^2.2.2"
 
 
 [build-system]
