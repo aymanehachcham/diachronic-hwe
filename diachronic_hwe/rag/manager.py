@@ -63,6 +63,13 @@ class RAGManager:
         logging.info("Finished creating vector store.")
         return vector_store.as_retriever(search_type="similarity", search_kwargs={"k": top_k})
 
+    def get_docs(self) -> List[Document]:
+        """
+        Get the documents
+        :return: List of documents
+        """
+        return self.documents
+
     def retrieve_docs(self, query: str) -> List[Document]:
         """
         Retrieve documents from the vector store

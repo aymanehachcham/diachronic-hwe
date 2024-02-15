@@ -46,6 +46,9 @@ if __name__ == "__main__":
     # for doc in docs:
     #     print(doc)
     #     print("\n\n")
-    DocumentProcessor(json_file_path="sample_data/TheNewYorkTimes1980.xml").lookup_word(
-        word="abuse"
-    )
+    docs = DocumentProcessor(
+        json_file_path="sample_data/TheNewYorkTimes1980.xml"
+    ).retrieve_context_docs(target_word="abuse")
+    for doc in docs:
+        print(doc)
+        print("\n\n")
