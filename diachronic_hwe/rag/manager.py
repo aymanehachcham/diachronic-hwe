@@ -47,7 +47,7 @@ class RAGManager:
             raise ValueError(f"File {file_path} is not a txt file.")
         return cls(docs=TextLoader(file_path=file_path))
 
-    def __v_store(self, top_k: int = 10) -> Chroma:
+    def __v_store(self, top_k: int = 1) -> Chroma:
         """
         Create a vector store from the chunks
         :return: A vector store
