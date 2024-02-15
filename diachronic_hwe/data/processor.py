@@ -4,6 +4,7 @@ import os
 import re
 from collections import Counter
 from typing import List, Optional, Union
+from langchain.schema import Document
 
 import spacy
 from nltk.corpus import stopwords, wordnet as wn
@@ -102,6 +103,12 @@ class DocumentProcessor:
         """
         Look up a word in the documents.
         """
+        txt_path = str(self.file_path).rsplit("/", maxsplit=1)[-1].replace(".json", ".txt")
+        file = os.path.join(os.getenv("COMPILED_DOCS_PATH"), txt_path)
+        if os.path.exists(file):
+            logging.info(f"File {file} already exists.")
+            return
+
         _ = self.__compile_docs()
         logging.info(f"Length of docs: {len(self.docs)}")
         matching_paragraphs = []
@@ -114,17 +121,44 @@ class DocumentProcessor:
                     doc = self.nlp(chunk)
                     # Check if any word in the paragraph has the same lemma as the target word
                     if any(word.lemma_.lower() == target_lemma for word in doc):
-                        matching_paragraphs += [chunk]
+                        matching_paragraphs += [self.__preprocess_text(chunk)]
 
         txt = "\n".join(matching_paragraphs)
-        txt_path = str(self.file_path).rsplit("/", maxsplit=1)[-1].replace(".json", ".txt")
-        with open(os.path.join(os.getenv("COMPILED_DOCS_PATH"), txt_path), "w") as f:
+        with open(file, "w") as f:
             f.write(txt)
 
+    @staticmethod
+    def __preprocess_text(txt: str) -> str:
+        """
+        Preprocesses the input string by removing extra spaces and non-printable characters.
+
+        :param input_string: The string to preprocess.
+        :return: A cleaned and preprocessed version of the input string.
+        """
+        # Remove non-printable characters
+        cleaned_string = re.sub(r'[^\x20-\x7E]+', '', txt)
+
+        # Replace multiple spaces with a single space
+        cleaned_string = re.sub(r'\s+', ' ', cleaned_string)
+
+        # Trim spaces at the beginning and end of the string
+        cleaned_string = cleaned_string.strip()
+
+        return cleaned_string
+
+    def retrieve_context_docs(self, target_word: str) -> List[str]:
+        """
+        Retrieve the documents from the file.
+        """
+        self.lookup_word(target_word)
+        with open(os.path.join(os.getenv("COMPILED_DOCS_PATH"), self.file_name + ".txt")) as f:
+            txt = f.readlines()
+        return txt
+
     def retrieve_context(
-        self,
-        target_word: str,
-        query: str,
+            self,
+            target_word: str,
+            query: str,
     ) -> Optional[List[str]]:
         """
         Retrieve documents that contain a given word.
