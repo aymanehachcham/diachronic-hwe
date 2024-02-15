@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "hwe thesis code"
+name = "diachronic-hwe"
 version = "0.1.0"
 description = "The Code for my thesis, Hierarchical Word Embeddings to model semantic shift"
 authors = ["Aymane H."]
@@ -21,6 +21,8 @@ openai = "^1.6.1"
 chromadb = "^0.4.22"
 tiktoken = "^0.5.2"
 sentence-transformers = "^2.2.2"
+toml = "^0.10.2"
+spacy = "^3.7.2"
 
 
 [build-system]

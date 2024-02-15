@@ -1,0 +1,23 @@
+[openai]
+api_key = "your_openai_api_key_here"
+model = "text-davinci-003"
+temperature = 0.7
+max_tokens = 150
+top_p = 1.0
+frequency_penalty = 0.0
+presence_penalty = 0.0
+
+[application_settings]
+# Define any application-specific settings here
+debug_mode = false
+log_level = "info"
+
+[api_settings]
+# Endpoint configurations
+base_url = "https://api.openai.com/v1"
+completion_endpoint = "/completions"
+
+[user_defaults]
+# Default settings for user queries
+default_prompt = "Translate the following text into French:"
+default_language = "en"
