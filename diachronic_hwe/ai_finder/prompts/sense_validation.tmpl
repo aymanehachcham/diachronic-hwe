@@ -8,6 +8,11 @@ you are given a dictionary of the different senses that exist for the word:
 The key represents the sense name in wordnet and the value is the definition of the sense.
 Your task if to find the most similar sense for each instance of the target word in the text.
 Take a deep breath and reason step-by-step. Act as a senior data analyst.
-- Return the result as a pair containing the name of the sense and the sense definition:
-Response:
+- Return back the sense name and sense definition as a dict format wrapped within a json object ```json```,
+Example format:
+[{{
+  "name": "abuse.n.01",
+  "definition": "cruel or inhumane treatment"
+}}]
+
 
