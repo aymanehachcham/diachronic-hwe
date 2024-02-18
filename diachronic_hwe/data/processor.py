@@ -4,10 +4,9 @@ import os
 import re
 from collections import Counter
 from typing import List, Optional, Union
-from langchain.schema import Document
 
 import spacy
-from nltk.corpus import stopwords, wordnet as wn
+from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
 
 from ..rag.manager import RAGManager
@@ -86,19 +85,6 @@ class DocumentProcessor:
 
         return txt
 
-    def extract_hyponyms(self, word: str) -> List[str]:
-        """
-        Extract hyponyms for a given word.
-        """
-        synsets = wn.synsets(word)
-        hyponyms = []
-        for synset in synsets:
-            for hyponym in synset.hyponyms():
-                for lemma in hyponym.lemmas():
-                    hyponyms += [lemma.name()]
-
-        return hyponyms
-
     def lookup_word(self, word: str) -> None:
         """
         Look up a word in the documents.
@@ -136,10 +122,10 @@ class DocumentProcessor:
         :return: A cleaned and preprocessed version of the input string.
         """
         # Remove non-printable characters
-        cleaned_string = re.sub(r'[^\x20-\x7E]+', '', txt)
+        cleaned_string = re.sub(r"[^\x20-\x7E]+", "", txt)
 
         # Replace multiple spaces with a single space
-        cleaned_string = re.sub(r'\s+', ' ', cleaned_string)
+        cleaned_string = re.sub(r"\s+", " ", cleaned_string)
 
         # Trim spaces at the beginning and end of the string
         cleaned_string = cleaned_string.strip()
@@ -156,9 +142,9 @@ class DocumentProcessor:
         return txt
 
     def retrieve_context(
-            self,
-            target_word: str,
-            query: str,
+        self,
+        target_word: str,
+        query: str,
     ) -> Optional[List[str]]:
         """
         Retrieve documents that contain a given word.
