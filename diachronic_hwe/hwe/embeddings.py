@@ -1,20 +1,29 @@
 import json
+import os
 import re
 from typing import Dict, List, Optional, Tuple
+import itertools
+from numpy import mean
 
 import nltk
 import torch
-from nltk import pos_tag
+import logging
+from nltk import pos_tag, word_tokenize
 from nltk.corpus import stopwords, wordnet as wn
 from nltk.stem import WordNetLemmatizer
 from transformers import BertModel, BertTokenizer
+from .sense_embeddings import VectorEmbeddings
 
 from ..ai_finder.finder import GptSimilarityFinder
 
-nltk.download("punkt")
-nltk.download("averaged_perceptron_tagger")
-nltk.download("stopwords")
-nltk.download("wordnet")
+logging.getLogger('nltk').setLevel(logging.ERROR)
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('averaged_perceptron_tagger')
+    nltk.download('stopwords')
+    nltk.download('wordnet')
 
 
 class RetrieveEmbeddings:
@@ -27,7 +36,7 @@ class RetrieveEmbeddings:
         self.model = BertModel.from_pretrained("bert-base-uncased", output_attentions=True)
         self.stop_words = set(stopwords.words("english"))
         self.lemmatizer = WordNetLemmatizer()
-        self.gpt = GptSimilarityFinder()
+        self.gpt = GptSimilarityFinder(os.getenv("GPT_GENERATE_EXAMPLES"))
 
     def __filter_context_words(self, tokens: List[str]) -> List[str]:
         """
@@ -59,6 +68,19 @@ class RetrieveEmbeddings:
         return None
 
     @staticmethod
+    def get_hyponyms(word: str) -> List[str]:
+        """
+        Function to get the hyponyms of a word
+        :param word: str
+        """
+        synsets = wn.synsets(word)
+        hyponyms = []
+        for synset in synsets:
+            hyponyms.extend([synset.name() for synset in synset.hyponyms()])
+
+        return hyponyms
+
+    @staticmethod
     def get_sense_definitions(word_pos: Tuple) -> Dict:
         """
         Function to get the synsets of a word based on the pos tagging
@@ -67,19 +89,41 @@ class RetrieveEmbeddings:
         senses = {}
         synsets = wn.synsets(word_pos[0], pos=word_pos[1])
         for synset in synsets:
-            senses[synset] = synset.definition()
+            senses[synset.name()] = synset.definition()
         return senses.copy()
 
-    def pos_tagging(self, words: List[str]) -> List[str]:
+    def pos_tag(self, context: str, target_word: str) -> Tuple:
         """
         Function to get the part of speech tag of a word
-        :param words: List[str]
+        :param context: str
+        :param target_word: str
         """
-        for word, tag in pos_tag(words):
-            if self.get_wordnet_pos(tag) is not None:
+        for word, tag in pos_tag(word_tokenize(context)):
+            if word == target_word:
                 yield word, self.get_wordnet_pos(tag)
-            else:
-                yield word, wn.NOUN
+
+    def get_most_similar(self, target_word: str, context: str) -> str:
+        """
+        Function that computes the context words from the target word,
+        and evaluates the most similar hyponym given the context of the target word.
+        :param target_word: str
+        :param context: str
+        """
+        # specify the model path:model_path="trained_bert_corpora_1980"
+        vector = VectorEmbeddings()
+        similarities = []
+        scores = {}
+        hyponyms = self.get_hyponyms(target_word)
+        context_words = self.get_attended_words(context, target_word)
+        for hyponym in hyponyms:
+            embedding_hyponym = vector.word_embedding(hyponym)
+            for word in context_words:
+                similarities += [vector.get_similarity(
+                    embedding_hyponym,
+                    vector.infer_vector(doc=context, target_word=word)
+                )]
+            scores[hyponym] = mean(similarities)
+        return max(scores, key=scores.get)
 
     def sense_identification(self, context: str, target_word: Tuple) -> Optional[str]:
         """
@@ -98,13 +142,21 @@ class RetrieveEmbeddings:
             return json_response[0].get("name")
         return None
 
-    def get_attended_words(self, context: str, target_word: str, focus_layers=None) -> List[str]:
+    def get_attended_words(
+            self,
+            context: str,
+            target_word: str,
+            focus_layers=None,
+            filter: bool = False
+    ) -> List[str]:
         """
         Function to get the most attended words for each target token
         :param context: str
         :param target_word: str
         :param focus_layers: list
+        :param filter: bool
         """
+        logging.info("Retrieving most attended words....")
         inputs = self.tokenizer(context, return_tensors="pt")
         outputs = self.model(**inputs)
         attention = outputs.attentions  # Tuple of attention weights from each layer
@@ -138,5 +190,29 @@ class RetrieveEmbeddings:
             for idx in sorted_indices
             if tokens_filtered[idx] != target_word
         ]
+        if filter:
+            return self.__filter_context_words([word for word, _ in context_words][:5])
+        return [word for word, _ in context_words][:5]
 
-        return self.__filter_context_words([word for word, _ in context_words][:5])
+    def generate_hierarchical_data(
+            self,
+            context: str,
+            target_word: str
+    ):
+        """
+        Function to generate hierarchical data for the target word
+        :param context: str
+        :param target_word: str
+        """
+        train_data = {}
+        context_words = self.get_attended_words(context, target_word)
+        postag_words = list(self.pos_tagging(context_words))
+
+        target = list(self.pos_tagging([target_word]))[0]
+        sense_target = self.sense_identification(context, target)
+        if sense_target is not None:
+            print(f"Sense of the target word: {target_word} -> {sense_target}")
+            sense_child_word = self.sense_identification(context, postag_words[0])
+            train_data["parent"] = sense_target
+
+        print(train_data)
