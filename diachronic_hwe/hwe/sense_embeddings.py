@@ -3,6 +3,8 @@ import torch
 from transformers import BertTokenizer, BertModel, BertPreTrainedModel, PreTrainedTokenizer
 from transformers import logging as lg
 from pydantic import BaseModel
+from nltk.stem import PorterStemmer
+from nltk.tokenize import word_tokenize
 import numpy as np
 from numpy.linalg import norm
 
@@ -76,6 +78,29 @@ class VectorEmbeddings:
         self.vocab = True
 
     @staticmethod
+    def standardize_word_variations(paragraph: str, target_word: str) -> str:
+        """
+        This method is used to standardize the word variations in a paragraph.
+        :param paragraph: str
+        :param target_word: str
+        :return: str
+        """
+        # Initialize the stemmer
+        stemmer = PorterStemmer()
+        target_root = stemmer.stem(target_word)
+
+        # Tokenize the paragraph into words
+        words = word_tokenize(paragraph)
+
+        # Process each word in the paragraph
+        standardized_paragraph = ' '.join(
+            [stemmer.stem(word) if stemmer.stem(word) == target_root else word for word in words])
+
+        # Replace the stemmed version of the target word with the target word itself
+        standardized_paragraph = standardized_paragraph.replace(target_root, target_word)
+        return standardized_paragraph
+
+    @staticmethod
     def get_similarity(vect_a: np.array, vect_b: np.array):
         """
         Returns the cosine similarity between two vectors
@@ -94,9 +119,10 @@ class VectorEmbeddings:
         :param target_word: str
         :return: torch.Tensor
         """
-        tokens = self._bert_tokenizer.tokenize(target_word, return_tensors="pt", add_special_tokens=True)
+        tokens = self._bert_tokenizer(target_word, return_tensors="pt", add_special_tokens=True)
         with torch.no_grad():
-            outputs = self._model(**tokens)
+            # Make sure to include output_hidden_states=True to get all hidden states
+            outputs = self._model(**tokens, output_hidden_states=True)
             hidden_states = outputs.hidden_states  # Get all hidden states
 
         # Extract embeddings for the word, ignoring [CLS] and [SEP] tokens
@@ -114,7 +140,8 @@ class VectorEmbeddings:
             raise ValueError(
                 f'The Embedding model {self._model} has not been initialized'
             )
-        marked_text = "[CLS] " + doc + " [SEP]"
+        std_doc = self.standardize_word_variations(doc, target_word)
+        marked_text = "[CLS] " + std_doc + " [SEP]"
         tokens = self._bert_tokenizer.tokenize(marked_text)
         try:
             main_token_id = tokens.index(target_word.lower())
