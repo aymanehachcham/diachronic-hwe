@@ -4,6 +4,8 @@ import re
 from typing import Dict, List, Optional, Tuple
 import itertools
 from numpy import mean
+from tqdm import tqdm
+import random
 
 import nltk
 import torch
@@ -15,6 +17,9 @@ from transformers import BertModel, BertTokenizer
 from .sense_embeddings import VectorEmbeddings
 
 from ..ai_finder.finder import GptSimilarityFinder
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 logging.getLogger('nltk').setLevel(logging.ERROR)
 try:
@@ -37,6 +42,8 @@ class RetrieveEmbeddings:
         self.stop_words = set(stopwords.words("english"))
         self.lemmatizer = WordNetLemmatizer()
         self.gpt = GptSimilarityFinder(os.getenv("GPT_GENERATE_EXAMPLES"))
+        # specify the model path:model_path="trained_bert_corpora_1980"
+        self.vector = VectorEmbeddings()
 
     def __filter_context_words(self, tokens: List[str]) -> List[str]:
         """
@@ -45,7 +52,7 @@ class RetrieveEmbeddings:
         """
         # Filter for nouns and non-stop words
         tokens = list(set(tokens))
-        noun_tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words]
+        noun_tokens = [token for token in tokens if token not in self.stop_words]
 
         return noun_tokens
 
@@ -76,8 +83,13 @@ class RetrieveEmbeddings:
         synsets = wn.synsets(word)
         hyponyms = []
         for synset in synsets:
-            hyponyms.extend([synset.name() for synset in synset.hyponyms()])
+            for synset in synset.hyponyms():
+                name = synset.name().split('.')[0]
+                if '_' in name:
+                    name = name.replace('_', ' ')
+                hyponyms.append(name)
 
+        random.shuffle(hyponyms)
         return hyponyms
 
     @staticmethod
@@ -92,7 +104,7 @@ class RetrieveEmbeddings:
             senses[synset.name()] = synset.definition()
         return senses.copy()
 
-    def pos_tag(self, context: str, target_word: str) -> Tuple:
+    def pos_tag(self, context: str, target_word: str) -> Optional[Tuple]:
         """
         Function to get the part of speech tag of a word
         :param context: str
@@ -100,7 +112,8 @@ class RetrieveEmbeddings:
         """
         for word, tag in pos_tag(word_tokenize(context)):
             if word == target_word:
-                yield word, self.get_wordnet_pos(tag)
+                return word, self.get_wordnet_pos(tag)
+        return None
 
     def get_most_similar(self, target_word: str, context: str) -> str:
         """
@@ -109,21 +122,49 @@ class RetrieveEmbeddings:
         :param target_word: str
         :param context: str
         """
-        # specify the model path:model_path="trained_bert_corpora_1980"
-        vector = VectorEmbeddings()
         similarities = []
         scores = {}
         hyponyms = self.get_hyponyms(target_word)
-        context_words = self.get_attended_words(context, target_word)
-        for hyponym in hyponyms:
-            embedding_hyponym = vector.word_embedding(hyponym)
-            for word in context_words:
-                similarities += [vector.get_similarity(
-                    embedding_hyponym,
-                    vector.infer_vector(doc=context, target_word=word)
-                )]
-            scores[hyponym] = mean(similarities)
-        return max(scores, key=scores.get)
+        logging.info(f"Found Hyponyms of {target_word}: {hyponyms}")
+        context_words = self.get_attended_words(context, target_word, filtering=True)
+        logging.info(f"Context words: {context_words}")
+        for hyponym in tqdm(hyponyms, desc="Computing similarities for target word..."):
+            embedding_hyponym = self.vector.word_embedding(hyponym)
+            similarities += [self.vector.get_similarity(
+                embedding_hyponym,
+                self.vector.infer_vector(doc=context, target_word=target_word)
+            )]
+            scores[hyponym] = max(similarities)
+
+        leaf_nodes = []
+        for word in context_words:
+            leaf_nodes.append(self.get_sim_hyponym_context(word, context, hyponyms))
+
+        return f"{target_word} -> {max(scores, key=scores.get)} ->  {leaf_nodes}"
+
+    def get_sim_hyponym_context(
+            self,
+            context_word: str,
+            context: str,
+            hyponyms: List
+    ) -> str:
+        """
+        Function to get the most similar hyponym given the context of the target word.
+        :param context_word: str
+        :param context: str
+        :param hyponyms: List
+        """
+        similarities = []
+        scores = {}
+        embedding_context_word = self.vector.infer_vector(context, context_word)
+        for hyponym in tqdm(hyponyms, desc="Computing similarities for context word..."):
+            similarities += [self.vector.get_similarity(
+                self.vector.word_embedding(hyponym),
+                embedding_context_word
+            )]
+            scores[hyponym] = max(similarities)
+
+        return f"{context_word} -> {max(scores, key=scores.get)}"
 
     def sense_identification(self, context: str, target_word: Tuple) -> Optional[str]:
         """
@@ -147,17 +188,18 @@ class RetrieveEmbeddings:
             context: str,
             target_word: str,
             focus_layers=None,
-            filter: bool = False
+            filtering: bool = False
     ) -> List[str]:
         """
         Function to get the most attended words for each target token
         :param context: str
         :param target_word: str
         :param focus_layers: list
-        :param filter: bool
+        :param filtering: bool
         """
         logging.info("Retrieving most attended words....")
-        inputs = self.tokenizer(context, return_tensors="pt")
+        std_context = self.vector.standardize_word_variations(context, target_word)
+        inputs = self.tokenizer(std_context, return_tensors="pt")
         outputs = self.model(**inputs)
         attention = outputs.attentions  # Tuple of attention weights from each layer
 
@@ -190,9 +232,19 @@ class RetrieveEmbeddings:
             for idx in sorted_indices
             if tokens_filtered[idx] != target_word
         ]
-        if filter:
-            return self.__filter_context_words([word for word, _ in context_words][:5])
-        return [word for word, _ in context_words][:5]
+        if filtering:
+            lemmas = []
+            words = filter(lambda x: x[0] not in self.stop_words, context_words)
+            for word, _ in words:
+                if self.pos_tag(context, word) is not None:
+                    _, pos = self.pos_tag(context, word)
+                    lemma = self.lemmatizer.lemmatize(word, pos=pos)
+                    if lemma == target_word:
+                        continue
+                    lemmas.append(word)
+            return lemmas
+
+        return [word for word, _ in context_words][:3]
 
     def generate_hierarchical_data(
             self,
