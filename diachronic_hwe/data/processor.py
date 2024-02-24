@@ -6,6 +6,7 @@ from collections import Counter
 from typing import List, Optional, Union
 
 import spacy
+from tqdm import tqdm
 from nltk.corpus import stopwords
 from nltk.tokenize import RegexpTokenizer
 
@@ -60,7 +61,7 @@ class DocumentProcessor:
         # Get words with frequency higher equal top_freq
         return [word for word, count in word_counts.items() if count == top_freq]
 
-    def __compile_docs(self, num_articles: int = 500, save: bool = False) -> Optional[str]:
+    def __compile_docs(self, num_articles: int = 1000, save: bool = False) -> Optional[str]:
         """
         Compile all full texts into one big chunk.
         """
@@ -91,15 +92,15 @@ class DocumentProcessor:
         """
         txt_path = str(self.file_path).rsplit("/", maxsplit=1)[-1].replace(".json", ".txt")
         file = os.path.join(os.getenv("COMPILED_DOCS_PATH"), txt_path)
-        if os.path.exists(file):
-            logging.info(f"File {file} already exists.")
-            return
+        # if os.path.exists(file):
+        #     logging.info(f"File {file} already exists.")
+        #     return
 
         _ = self.__compile_docs()
         logging.info(f"Length of docs: {len(self.docs)}")
         matching_paragraphs = []
         target_lemma = self.nlp(word)[0].lemma_.lower()
-        for doc in self.docs:
+        for doc in tqdm(self.docs, desc=f"Looking up word {word} in documents..."):
             paragraphs = doc.split("\n")
             # Process each paragraph with spaCy
             for chunk in paragraphs:
