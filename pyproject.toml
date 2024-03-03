@@ -24,6 +24,7 @@ sentence-transformers = "^2.2.2"
 toml = "^0.10.2"
 spacy = "^3.7.2"
 transformers = "^4.37.2"
+lz4 = "^4.3.3"
 
 
 [build-system]

@@ -1,0 +1,17 @@
+You are provided with the following paragraph from the New York Times:
+"{context}", a target word "{target}" given in the paragraph, a list of context words "{context_words}"
+that are related to the target word "{target}" and a list of hyponyms (more specific terms derived from the target word) from the target word "{hyponyms}".
+
+Your objective is to analyze and construct a hierarchy of terms that combines both the context words and hyponyms based on their semantic relationships as demonstrated in the paragraph.
+
+- First, Begin by determining which hyponym is most closely aligned with the way the target word is used within the paragraph.
+- Second, organize the context words and hyponyms into a hierarchy. This hierarchy should reflect how these terms relate to one another, with the aim of creating a structured representation.
+
+Your answer should be similar to this example:
+"{example}" and be exclusively elaborated based on the paragraph.
+
+Return your answer in the following format:
+"{format}", give 5 keys and for each key give a maximum of 2 related values.
+Your answer should be wrapped within ```json``` tags.
+
+Json:

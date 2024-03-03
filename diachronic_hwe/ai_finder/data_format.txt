@@ -1,0 +1,53 @@
+Given this example:
+- "the Mohawks of St. Regis are one nation within the six-nation Iroquois Confederacy.
+As members of a sovereign nation, the traditionalists do not recognize state or Federal authorities.
+The elective systems supporters make no claim for nation status or sovereignty.
+Traditionalists refuse to vote in tribal elections, and Rudolph Hart Jr.,
+the tribal planner and a son of one of the elective chiefs, believes that this refusal to vote
+makes the traditionalists an insignificant factor in tribal politics. Dissident Faction Emerges
+Mohawk politics were further confused or clarified -
+it depends upon whom one talks to - by the emergence this spring of a third faction,
+the so-called dissident party, which held an election and replaced the three tribal chiefs.
+But the State of New York has not recognized the election,
+which was not the traditional June voting, and the previously elected chiefs remain in office.
+The traditionalists have supported the dissidents.
+Mr. Hart sees the emergence of the dissidents as a simple attempt to gain political power.
+In 1969, the Mohawks received a total of 2,200 in outside grants, he said.
+Last year, we received over 5 million. The stakes here are control of that 5 million.
+Also at stake, according to Mr. Hart, is the settlement of a Mohawk land claim suit.
+In exchange for their surrender of a claim upon land that includes downtown Massena, the elected chiefs have tentatively agreed to accept 6 million and 9,750 acres of state forest land. Dissidents and traditionalists oppose the accord. Debate over the land claim settlement is recent, but a controversy over the size and power of the tribal police force is long-standing. An arm of the Franklin County Sheriffs Department, the force is composed entirely of Indians. Recently, a Federal training grant has allowed the tribe to increase the number of police from 7 to 17. Mr. Berman, a non-Indian who along with William M.
+Kunstler, has been representing the traditionalists in court, sees the expansion of the police force as either a
+dangerous move toward the creation of a police state or a dangerous abuse of welfare funds.
+On June 20, the Mohawks arrested for the community center occupation are to go to trial on conspiracy charges. Loran Thompson, the traditionalist chief whose arrest in May 1979 led to the takeover but who was not indicted for the occupation, sees mere participation in the trial as a defeat.
+We may win in court, he said. But just by being there we lose some of our sovereignty".
+
+And a list of hyponyms for the target word abuse.n: ['vituperation', 'child neglect', 'slang', 'fracture', 'kick around', 'child abuse', 'scurrility', 'stinger', 'low blow', 'vilify', 'substance abuse', 'persecution', 'cruelty', 'take in vain', 'curse']
+And a list of attended words for the target word abuse.n: ['move.v', 'dangerous.n', 'funds.n']
+The prompt would be something like:
+Now, given this list of hyponyms:{hyponyms} and the list of attended words:{attended_words} for the word abuse.n which is in this context:{context}
+use the list of hyponyms and attended words to build the hierarchy but based solely on the text.
+
+Example data: kangaroo.n.01 - marsupial.n.01
+domestic_goat.n.01 - even-toed_ungulate.n.01
+rock_squirrel.n.01 - ground_squirrel.n.02
+vizsla.n.01  -  dog.n.01
+dandie_dinmont.n.01 - mammal.n.01
+broodmare.n.01 - horse.n.01
+spotted_skunk.n.01 -	spotted_skunk.n.01
+hispid_pocket_mouse.n.01	 - hispid_pocket_mouse.n.01
+lesser_kudu.n.01	 - placental.n.01
+water_shrew.n.01	 - insectivore.n.01
+
+Result:
+abuse.n - political_abuse.n
+political_abuse.n - persecution.n
+abuse.n - financial_abuse.n
+financial_abuse.n - funds.n
+abuse.n - authority_abuse.n
+authority_abuse.n - dangerous_move.n
+abuse.n - verbal_abuse.n
+verbal_abuse.n - vilify.n
+abuse.n - neglect.n
+neglect.n - child_neglect.n
+abuse.n - manipulation.n
+abuse.n - economic_abuse.n
