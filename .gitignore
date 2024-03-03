@@ -8,3 +8,7 @@ The New York herald. [volume]/
 postprocess_data/
 sample_data/
 *.json
+diachronic_hwe/hwe/assets/*
+diachronic_hwe/hwe/models/*
+samples_compressed/*
+words/*
