@@ -2,12 +2,10 @@ import json
 import os
 import re
 from typing import Dict, List, Optional, Tuple
-import itertools
-from numpy import mean
 from tqdm import tqdm
 import random
 
-import nltk
+import srsly
 import torch
 import logging
 from nltk import pos_tag, word_tokenize
@@ -15,20 +13,16 @@ from nltk.corpus import stopwords, wordnet as wn
 from nltk.stem import WordNetLemmatizer
 from transformers import BertModel, BertTokenizer
 from .sense_embeddings import VectorEmbeddings
-
+from ..utils import cutDoc
+from dotenv import load_dotenv
 from ..ai_finder.finder import GptSimilarityFinder
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 logging.getLogger('nltk').setLevel(logging.ERROR)
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('averaged_perceptron_tagger')
-    nltk.download('stopwords')
-    nltk.download('wordnet')
 
 
 class RetrieveEmbeddings:
@@ -37,12 +31,9 @@ class RetrieveEmbeddings:
     """
 
     def __init__(self):
-        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-        self.model = BertModel.from_pretrained("bert-base-uncased", output_attentions=True)
         self.stop_words = set(stopwords.words("english"))
         self.lemmatizer = WordNetLemmatizer()
         self.gpt = GptSimilarityFinder(os.getenv("GPT_GENERATE_EXAMPLES"))
-        # specify the model path:model_path="trained_bert_corpora_1980"
         self.vector = VectorEmbeddings()
 
     def __filter_context_words(self, tokens: List[str]) -> List[str]:
@@ -72,7 +63,7 @@ class RetrieveEmbeddings:
             return wn.NOUN
         if treebank_tag.startswith("R"):
             return wn.ADV
-        return None
+        return wn.NOUN
 
     @staticmethod
     def get_hyponyms(word: str) -> List[str]:
@@ -110,7 +101,8 @@ class RetrieveEmbeddings:
         :param context: str
         :param target_word: str
         """
-        for word, tag in pos_tag(word_tokenize(context)):
+        std_context = self.vector.standardize_word_variations(context, target_word)
+        for word, tag in pos_tag(word_tokenize(std_context)):
             if word == target_word:
                 return word, self.get_wordnet_pos(tag)
         return None
@@ -199,11 +191,12 @@ class RetrieveEmbeddings:
         """
         logging.info("Retrieving most attended words....")
         std_context = self.vector.standardize_word_variations(context, target_word)
-        inputs = self.tokenizer(std_context, return_tensors="pt")
-        outputs = self.model(**inputs)
+        cut_doc = cutDoc(target_word, self.vector.tokenizer, std_context)
+        inputs = self.vector.tokenizer(cut_doc, return_tensors="pt")
+        outputs = self.vector.model(**inputs)
         attention = outputs.attentions  # Tuple of attention weights from each layer
 
-        tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
+        tokens = self.vector.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         target_index = tokens.index(target_word)  # Find the index of the target word
 
         if focus_layers is None:
@@ -242,29 +235,182 @@ class RetrieveEmbeddings:
                     if lemma == target_word:
                         continue
                     lemmas.append(word)
-            return lemmas
+            return lemmas[:3]
 
         return [word for word, _ in context_words][:3]
 
-    def generate_hierarchical_data(
-            self,
-            context: str,
-            target_word: str
-    ):
+    @staticmethod
+    def get_senses():
         """
-        Function to generate hierarchical data for the target word
-        :param context: str
-        :param target_word: str
+        Creating a list of senses and sub_senses for each target word.
+        :return:
         """
-        train_data = {}
-        context_words = self.get_attended_words(context, target_word)
-        postag_words = list(self.pos_tagging(context_words))
+        targets = ['network', 'virus', 'web', 'wall', 'stream']
+        network = [
+            "social_network.n.01",
+            "transportation_network.n.02",
+            "utility_network.n.03",
+            "computer_network.n.04",
+            "television_network.n.05",
+            "radio_network.n.06",
+            "satellite_network.n.07",
+            "digital_broadcasting_network.n.08",
+            "fishing_net.n.09",
+            "sports_net.n.10",
+            "cargo_net.n.11",
+            "safety_net.n.12",
+            "road_network.n.13",
+            "canal_network.n.14",
+            "grid_network.n.15",
+            "public_transportation_network.n.16",
+            "circuit_board.n.17",
+            "integrated_circuit_network.n.18",
+            "power_grid.n.19",
+            "sensor_network.n.20",
+            "socialize.v.01",
+            "collaborate.v.02",
+            "share_information.v.03",
+            "build_connections.v.04"
+        ]
+        virus = [
+    "animal_virus.n.01",
+    "plant_virus.n.02",
+    "bacteriophage.n.03",
+    "marine_virus.n.04",
+    "ideological_corruption.n.05",
+    "social_disruption.n.06",
+    "economic_instability.n.07",
+    "moral_decay.n.08",
+    "ransomware.n.09",
+    "worm.n.10",
+    "trojan.n.11",
+    "spyware.n.12"
+]
+        web = [
+    "intricate_weaving.n.01",
+    "interwoven_structure.n.02",
+    "natural_network.n.03",
+    "fabrication_network.n.04",
+    "entanglement_trap.n.05",
+    "ensnarement_device.n.06",
+    "predatory_network.n.07",
+    "deceptive_structure.n.08",
+    "feather_barbs.n.09",
+    "shaft_attachment.n.10",
+    "bird_feather_structure.n.11",
+    "plumage_component.n.12",
+    "system_interconnection.n.13",
+    "digital_network.n.14",
+    "social_network.n.15",
+    "transportation_network.n.16",
+    "internet_collection.n.17",
+    "multimedia_resources.n.18",
+    "hypertext_system.n.19",
+    "online_platform.n.20",
+    "textile_creation.n.21",
+    "weaving_process.n.22",
+    "fabric_manufacture.n.23",
+    "loom_work.n.24",
+    "aquatic_adaptation.n.25",
+    "bird_swimming_aid.n.26",
+    "mammalian_membrane.n.27",
+    "toe_connector.n.28",
+    "weaving_activity.n.29",
+    "web_construction.n.30",
+    "fabric_weaving.n.31",
+    "network_creation.n.32"
+]
+        wall = [
+    "partition_wall.n.01",
+    "enclosure_wall.n.02",
+    "supporting_wall.n.03",
+    "dividing_wall.n.04",
+    "barrier_effect.n.05",
+    "protection_structure.n.06",
+    "separation_barrier.n.07",
+    "boundary_wall.n.08",
+    "anatomical_layer.n.09",
+    "membrane_enclosure.n.10",
+    "structural_enclosure.n.11",
+    "lining_protection.n.12",
+    "challenging_situation.n.13",
+    "obstacle_situation.n.14",
+    "restrictive_condition.n.15",
+    "awkward_condition.n.16",
+    "rock_face.n.17",
+    "mountain_face.n.18",
+    "cave_wall.n.19",
+    "cliff_wall.n.20",
+    "enclosing_layer.n.21",
+    "space_enclosure.n.22",
+    "material_layer.n.23",
+    "insulation_wall.n.24",
+    "garden_wall.n.25",
+    "estate_fence.n.26",
+    "masonry_barrier.n.27",
+    "decorative_wall.n.28",
+    "defensive_embankment.n.29",
+    "fortification_wall.n.30",
+    "protective_rampart.n.31",
+    "embankment_structure.n.32",
+    "fortify_structure.n.33",
+    "enclose_space.n.34",
+    "build_barrier.n.35",
+    "construction_fortification.n.36"
+]
+        stream = [
+    "mountain_stream.n.01",
+    "underground_river.n.02",
+    "river_flow.n.03",
+    "brook_stream.n.04",
+    "historical_progression.n.05",
+    "idea_sequence.n.06",
+    "event_current.n.07",
+    "conceptual_flow.n.08",
+    "continuous_progression.n.09",
+    "flowing_movement.n.10",
+    "progressive_sequence.n.11",
+    "uninterrupted_transition.n.12",
+    "moving_continuously.n.13",
+    "flowing_resemble.n.14",
+    "continuous_motion.n.15",
+    "fluid_flow.n.16",
+    "natural_current.n.17",
+    "air_current.n.18",
+    "water_current.n.19",
+    "fluid_steady_flow.n.20",
+    "wave_extension.n.21",
+    "float_outward.n.22",
+    "wind_movement.n.23",
+    "banner_stream.n.24",
+    "profuse_exude.n.25",
+    "sweat_stream.n.26",
+    "bleed_profusely.n.27",
+    "secrete_abundantly.n.28",
+    "crowd_movement.n.29",
+    "migrate_in_numbers.n.30",
+    "traffic_flow.n.31",
+    "animal_migration.n.32",
+    "heavy_rainfall.n.33",
+    "downpour_weather.n.34",
+    "torrential_rain.n.35",
+    "cloudburst_event.n.36",
+    "abundant_flow.n.37",
+    "free_running.n.38",
+    "waterfall_cascade.n.39",
+    "river_discharge.n.40"
+]
+        word = {}
+        for target in targets:
+            senses = {}
+            for synset in wn.synsets(target):
+                senses[synset.name()] = synset.definition()
 
-        target = list(self.pos_tagging([target_word]))[0]
-        sense_target = self.sense_identification(context, target)
-        if sense_target is not None:
-            print(f"Sense of the target word: {target_word} -> {sense_target}")
-            sense_child_word = self.sense_identification(context, postag_words[0])
-            train_data["parent"] = sense_target
+            word[target] = {}
+            word[target]['senses'] = senses
+            word[target]['sub_senses'] = eval(target)
 
-        print(train_data)
+        # save to a json file:
+        file_path = os.path.join(os.getenv("COMPILED_DOCS_PATH"), "senses.json")
+        srsly.write_json(file_path, word)
+

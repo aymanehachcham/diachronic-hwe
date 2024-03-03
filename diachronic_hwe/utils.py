@@ -1,6 +1,46 @@
 import os
 
 from PIL import Image, ImageEnhance, ImageFilter
+from typing import Optional
+from transformers import PreTrainedTokenizer
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+
+def cutDoc(
+        main_word: str,
+        tokenizer: PreTrainedTokenizer,
+        doc: Optional[str] = None,
+        max_length: int = 120,
+) -> Optional[str]:
+    main_word = ' ' + main_word.strip() + ' '
+    if doc is None:
+        doc = main_word
+        return doc
+
+    tokens = tokenizer.tokenize(doc)
+    main_token = tokenizer.tokenize(main_word)[0]
+
+    try:
+        main_index = tokens.index(main_token)
+    except ValueError:
+        return None
+
+    start = max(0, main_index - max_length // 2)
+    end = start + max_length
+
+    if end > len(tokens):
+        end = len(tokens)
+        start = max(0, end - max_length)
+
+    # Convert the tokens back to ids for decoding
+    token_ids = tokenizer.convert_tokens_to_ids(tokens[start:end])
+
+    # Decode the token ids back to a string
+    sliced_doc = tokenizer.decode(token_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+    return sliced_doc
 
 
 def find_project_root(filename=None) -> str:

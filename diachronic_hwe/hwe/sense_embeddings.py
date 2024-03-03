@@ -1,12 +1,13 @@
 from typing import List
 import torch
-from transformers import BertTokenizer, BertModel, BertPreTrainedModel, PreTrainedTokenizer
+from transformers import RobertaTokenizer, RobertaModel, BertTokenizer, BertModel, PreTrainedModel, PreTrainedTokenizer
 from transformers import logging as lg
 from pydantic import BaseModel
 from nltk.stem import PorterStemmer
 from nltk.tokenize import word_tokenize
 import numpy as np
 from numpy.linalg import norm
+from ..utils import cutDoc
 
 
 class Sense(BaseModel):
@@ -33,8 +34,8 @@ class VectorEmbeddings:
     """
     _model_path: str
     _tokens: List
-    _model: BertPreTrainedModel
-    _bert_tokenizer: PreTrainedTokenizer
+    _model: PreTrainedModel
+    _tokenizer: PreTrainedTokenizer
     vocab: bool
     _tokens_tensor: torch.Tensor
     _segments_tensors: torch.Tensor
@@ -55,24 +56,49 @@ class VectorEmbeddings:
     def tokens(self):
         return self._tokens
 
-    def _bert_case_preparation(self) -> None:
+    def _roberta_preparation(self) -> None:
         """
-        This method is used to prepare the BERT model for the inference.
+        This method is used to prepare the Roberta model for the inference.
         """
         if self.model_path is not None:
-            self._bert_tokenizer = BertTokenizer.from_pretrained(self.model_path)
-            self._model = BertModel.from_pretrained(
+            self._tokenizer = RobertaTokenizer.from_pretrained(self.model_path)
+            self._model = RobertaModel.from_pretrained(
                 self.model_path,
                 output_hidden_states=True,
+                ouput_attentions=True
             )
             self._model.eval()
             self.vocab = True
             return
 
-        self._bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self._tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+        self._model = RobertaModel.from_pretrained(
+            'roberta-base',
+            output_hidden_states=True,
+        )
+        self._model.eval()
+        self.vocab = True
+
+    def _bert_case_preparation(self) -> None:
+        """
+        This method is used to prepare the BERT model for the inference.
+        """
+        if self.model_path is not None:
+            self._tokenizer = BertTokenizer.from_pretrained(self.model_path)
+            self._model = BertModel.from_pretrained(
+                self.model_path,
+                output_hidden_states=True,
+                output_attentions=True
+            )
+            self._model.eval()
+            self.vocab = True
+            return
+
+        self._tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         self._model = BertModel.from_pretrained(
             'bert-base-uncased',
             output_hidden_states=True,
+            output_attentions=True
         )
         self._model.eval()
         self.vocab = True
@@ -119,7 +145,7 @@ class VectorEmbeddings:
         :param target_word: str
         :return: torch.Tensor
         """
-        tokens = self._bert_tokenizer(target_word, return_tensors="pt", add_special_tokens=True)
+        tokens = self._tokenizer(target_word, return_tensors="pt", add_special_tokens=True)
         with torch.no_grad():
             # Make sure to include output_hidden_states=True to get all hidden states
             outputs = self._model(**tokens, output_hidden_states=True)
@@ -128,6 +154,50 @@ class VectorEmbeddings:
         # Extract embeddings for the word, ignoring [CLS] and [SEP] tokens
         word_embeddings = hidden_states[-1][0, 1:-1, :].mean(dim=0)
         return word_embeddings
+
+    def roberta_embedding(self, target_word: str) -> torch.Tensor:
+        """
+        Get roberta embeddings for a word
+        :param target_word: str
+        """
+        if not self.vocab:
+            raise ValueError(
+                f'The Embedding model {self._model.__class__.__name__} has not been initialized'
+            )
+
+        target_word = ' ' + target_word.strip()
+        doc = f" {target_word} "
+        return self.roberta_infer_vector(doc, target_word)
+
+    def roberta_infer_vector(self, doc: str, target_word: str) -> torch.Tensor:
+        """
+        This method is used to infer the vector embeddings of a word from a document
+        Args:
+            doc (str): Document to process
+            target_word (str): Main work to extract the vector embeddings for
+        Returns:
+            embeddings (torch.Tensor): Tensor of stacked embeddings of shape (num_embeddings, embedding_size) where num_embeddings is the number of times the main_word appears in the doc
+        """
+        if not self.vocab:
+            raise ValueError(
+                f'The Embedding model {self._model.__class__.__name__} has not been initialized'
+            )
+        std_doc = self.standardize_word_variations(doc, target_word)
+        cut_doc = cutDoc(target_word, self._tokenizer, std_doc)
+        input_ids = self._tokenizer(cut_doc, return_tensors="pt").input_ids
+        target_word = ' ' + target_word.strip()
+        token = self._tokenizer.encode(target_word, add_special_tokens=False)[0]
+        word_token_index = torch.where(input_ids == token)[1]
+
+        try:
+            with torch.no_grad():
+                embeddings = self._model(input_ids).last_hidden_state
+
+            emb = [embeddings[0, idx] for idx in word_token_index]
+            return torch.stack(emb).mean(dim=0)
+
+        except IndexError:
+            raise ValueError(f'The word: "{target_word}" does not exist in the list of tokens')
 
     def infer_vector(self, doc: str, target_word: str) -> torch.Tensor:
         """
@@ -141,11 +211,13 @@ class VectorEmbeddings:
                 f'The Embedding model {self._model} has not been initialized'
             )
         std_doc = self.standardize_word_variations(doc, target_word)
-        marked_text = "[CLS] " + std_doc + " [SEP]"
-        tokens = self._bert_tokenizer.tokenize(marked_text)
+        cut_doc = cutDoc(target_word, self._tokenizer, std_doc)
+        marked_text = "[CLS] " + cut_doc + " [SEP]"
+        tokens = self._tokenizer.tokenize(marked_text)
+
         try:
             main_token_id = tokens.index(target_word.lower())
-            idx = self._bert_tokenizer.convert_tokens_to_ids(tokens)
+            idx = self._tokenizer.convert_tokens_to_ids(tokens)
             segment_id = [1] * len(tokens)
 
             self._tokens_tensor = torch.tensor([idx])
@@ -159,5 +231,13 @@ class VectorEmbeddings:
 
         except ValueError:
             raise ValueError(
-                f'The word: "{target_word}" does not exist in the list of tokens: {tokens} from {doc}'
+                f'The word: "{target_word}" does not exist in the list of tokens: {tokens} from {std_doc}'
             )
+
+    @property
+    def tokenizer(self):
+        return self._tokenizer
+
+    @property
+    def model(self):
+        return self._model
