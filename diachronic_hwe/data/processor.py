@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import random
 import re
 from collections import Counter
 from typing import List, Optional, Union
@@ -61,7 +62,7 @@ class DocumentProcessor:
         # Get words with frequency higher equal top_freq
         return [word for word, count in word_counts.items() if count == top_freq]
 
-    def __compile_docs(self, num_articles: int = 1000, save: bool = False) -> Optional[str]:
+    def __compile_docs(self, num_articles: int = 10_000, save: bool = False) -> Optional[str]:
         """
         Compile all full texts into one big chunk.
         """
@@ -74,7 +75,8 @@ class DocumentProcessor:
             logger.error(e)
             raise ValueError(f"Error: {self.file_path} is not a valid json file.") from e
 
-        self.docs = [art["fulltext"] for art in articles[:num_articles]]
+        self.docs = [art["fulltext"] for art in articles]
+        random.shuffle(self.docs)
 
         txt = ".".join(self.docs)
         txt = re.sub(pattern, "", txt, flags=re.MULTILINE)
@@ -86,17 +88,17 @@ class DocumentProcessor:
 
         return txt
 
-    def lookup_word(self, word: str) -> None:
+    def lookup_word(self, word: str, year: int) -> None:
         """
         Look up a word in the documents.
         """
-        txt_path = str(self.file_path).rsplit("/", maxsplit=1)[-1].replace(".json", ".txt")
-        file = os.path.join(os.getenv("COMPILED_DOCS_PATH"), txt_path)
-        # if os.path.exists(file):
-        #     logging.info(f"File {file} already exists.")
-        #     return
+        # Check if folder exists:
+        folder_name = os.path.join(os.getenv("COMPILED_DOCS_PATH"), f"{word}")
+        if not os.path.exists(folder_name):
+            os.makedirs(folder_name)
+        file = os.path.join(folder_name, f'{word}_{year}.txt')
 
-        _ = self.__compile_docs()
+        _ = self.__compile_docs(num_articles=5000)
         logging.info(f"Length of docs: {len(self.docs)}")
         matching_paragraphs = []
         target_lemma = self.nlp(word)[0].lemma_.lower()
