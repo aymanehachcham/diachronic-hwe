@@ -1,0 +1,14 @@
+[poincare]
+size = 50
+alpha = 0.1
+burn_in = 0
+workers = 1
+negative = 10
+epsilon = 1e-5
+seed = 0
+regularization_coeff = 1.0
+
+[train]
+batch_size = 10
+print_every = 50
+epochs = 100
