@@ -10,5 +10,6 @@ sample_data/
 *.json
 diachronic_hwe/hwe/assets/*
 diachronic_hwe/hwe/models/*
+diachronic_hwe/hwe/packages/*
 samples_compressed/*
 words/*
