@@ -5,11 +5,10 @@ import os
 from ..utils import find_closest
 
 
-class PoincareEmbeddings:
+class TrainPoincareEmbeddings:
     """
     Class to train Poincare Embeddings
     """
-
     def __init__(self, data_path: str):
         # Validate data path
         if not os.path.exists(data_path):
@@ -52,11 +51,15 @@ class PoincareEmbeddings:
         # save the model:
         self.model.save(os.path.join(
             model_path,
-            f"{model_name}_epochs_{self.train_cfg['epochs']}_neg_{self.model_cfg['negative']}"
+            f"{model_name}_epochs_{self.train_cfg['epochs']}_neg_{self.model_cfg['negative']}.model"
         ))
         self.model.kv.save(os.path.join(
             model_path,
-            f"{model_name}_epochs_{self.train_cfg['epochs']}_neg_{self.model_cfg['negative']}_vectors"
+            f"{model_name}_epochs_{self.train_cfg['epochs']}_neg_{self.model_cfg['negative']}.vec"
+        ))
+        self.model.kv.save_word2vec_format(os.path.join(
+            model_path,
+            f"{model_name}_epochs_{self.train_cfg['epochs']}_neg_{self.model_cfg['negative']}.w2vec"
         ))
 
     def load(self):
@@ -67,7 +70,7 @@ class PoincareEmbeddings:
         model = PoincareModel.load(os.path.join(
             root_folder,
             f"{self.year}_poincare_gensim",
-            f"{self.year}_poincare_gensim_epochs_{self.train_cfg['epochs']}_neg_{self.model_cfg['negative']}"
+            f"{self.year}_poincare_gensim_epochs_{self.train_cfg['epochs']}_neg_{self.model_cfg['negative']}.model"
         ))
         return model
 
