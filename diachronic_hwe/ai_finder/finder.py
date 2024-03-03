@@ -1,7 +1,7 @@
 import logging
 import os
 from time import perf_counter
-from typing import Dict, Union
+from typing import Dict, Union, List
 
 import toml
 import json
@@ -19,6 +19,11 @@ class GptSimilarityFinder:
     """
     class the handler open AI gpt retriever with embeddings to look up
     closer sense for each target word.
+    """
+    _format = """
+    target_word.n.01 - sense.n.01
+    sense.n.01 - sub-sense.n.01
+    context_word.n.01 - sub-sense.n.01
     """
 
     def __init__(self, prompt_path: str):
@@ -43,9 +48,11 @@ class GptSimilarityFinder:
 
     def _get_prompt(
         self,
-        target_word: str,
-        text: str,
-        senses: Union[Dict, str],
+        doc: str,
+        target: str,
+        senses: Dict,
+        sub_senses: List,
+        output_format: str
     ) -> str:
         """
         Function to get the prompt for the GPT-3 model.
@@ -61,29 +68,35 @@ class GptSimilarityFinder:
                 prompt = f.read()
         else:
             prompt = self.prompt
-        return prompt.format(text=text, word=target_word, senses=senses)
+        return prompt.format(
+            context=doc,
+            target=target,
+            senses=senses,
+            sub_senses=sub_senses,
+            format=output_format
+        )
 
     def call_gpt(
         self,
-        target_word: str,
-        text: str,
-        senses: Union[Dict, str],
+        target: str,
+        doc: str,
+        senses: Dict,
+        sub_senses: List,
     ):
         """
         Function to get the sense of the target word based on the context.
-        :param target_word: str
-        :param text: str
-        :param senses: Dict
+        :param target: str
+        :param doc: str
+        :param senses: List
+        :param sub_senses: List
         """
-        # Serialize the target_word, text, and senses to create a unique cache key
-        self.load_cache()
-        cache_key = f"{target_word}_{text}"
-        # Check if the query is already in the cache
-        if cache_key in self.cache:
-            logging.info("Retrieving response from cache.")
-            return self.cache[cache_key]
-
-        prompt = self._get_prompt(target_word, text, senses)
+        prompt = self._get_prompt(
+            doc=doc,
+            target=target,
+            senses=senses,
+            sub_senses=sub_senses,
+            output_format=f'{self._format}'
+        )
         # Call OpenAI's API to create a chat completion using the GPT-3 model
         logging.info("Calling OpenAI API....")
         start = perf_counter()
@@ -92,11 +105,10 @@ class GptSimilarityFinder:
             messages=[{"role": "user", "content": prompt}],  # The 'user' role is assigned to the prompt
             stop=None,  # There are no specific stop sequences
             temperature=self.config["openai"]["temperature"],
+            max_tokens=self.config["openai"]["max_tokens"],
         )
         logging.info(f"OpenAI API call took {perf_counter() - start} seconds.")
         response_text = response.choices[0].message.content.strip()
-
-        # Store the response in cache before returning
-        self.cache[cache_key] = response_text
-        self.save_cache()
-        return response_text
+        # convert the response text to a list of strings
+        response_list = response_text.split("\n")
+        return response_list

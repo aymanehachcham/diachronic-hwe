@@ -1,0 +1,20 @@
+You are provided with the following paragraph from the New York Times:
+- Context: "{context}"
+- A target word: <TargetWord>"{target}"<TargetWord/> given in the paragraph.
+- A list of senses for the target word: <Senses>"{senses}"</Senses>
+- A list of sub-senses: <SubSenses>"{sub_senses}"</SubSenses>
+
+Your objective is to analyze and construct an ontology as a hierarchy of senses, such as organizing concepts from the most general to more specific.
+Think step by step, and consider the following instructions:
+1- Generate a list of 5 context words that appear in the paragraph and are linked to the target word.
+2- Identify which sense from the list of senses is the closes to target word given the paragraph.
+3- Identify which sub-sense from the list of sub-senses is the closest to the chosen sense in step 2.
+4- Identify for each of the context words in step 1, which sub-sense is the closest to the context word given the paragraph.
+5- Generate a hierarchy of senses based on the paragraph and the instructions above,
+start with the target word -> sense -> sub-sense -> for each context word: context word -> sub-sense.
+
+Return your answer as a pairs following this format:
+"{format}"
+Your answer should be wrapped within ```tsv``` tags.
+
+Tsv:
