@@ -10,6 +10,11 @@ from dotenv import load_dotenv
 from sklearn.manifold import TSNE
 from scipy.spatial.distance import euclidean
 import itertools
+from sklearn.cluster import SpectralClustering
+from sklearn.neighbors import NearestNeighbors
+import networkx as nx
+import plotly.graph_objects as go
+
 
 load_dotenv()
 
@@ -37,6 +42,13 @@ class InferPoincareEmbeddings:
 
         self.model = PoincareModel.load(self._model_path)
 
+    def vocab_embeddings(self) -> np.array:
+        """
+        Extract all vocab embeddings
+        """
+        words = [k for k, v in self.model.kv.key_to_index.items()]
+        return np.array([self.extracting_embeddings(k) for k in words])
+
     def extracting_embeddings(self, word: str) -> List:
         """
         Extract the embeddings from the model.
@@ -44,6 +56,88 @@ class InferPoincareEmbeddings:
         if self.model.kv is None:
             print('No vector for:', word)
         return self.model.kv[word]
+
+    def generate_synthetic_data(x, y, n_samples, scale_factor=0.05, noise_level=0.01):
+        synthetic_data = []
+        for _ in range(n_samples):
+            # Randomly choose an index to scale and perturb
+            idx = np.random.randint(0, len(x))
+            new_x = x[idx] * (1 + np.random.uniform(-scale_factor, scale_factor))
+            new_y = y[idx] * (1 + np.random.uniform(-scale_factor, scale_factor))
+
+            # Add noise
+            new_x += np.random.uniform(-noise_level, noise_level)
+            new_y += np.random.uniform(-noise_level, noise_level)
+
+            # Ensure the new points are within the original range
+            new_x = np.clip(new_x, np.min(x), np.max(x))
+            new_y = np.clip(new_y, np.min(y), np.max(y))
+
+            synthetic_data.append([new_x, new_y])
+
+        return np.array(synthetic_data)
+
+    @staticmethod
+    def hierarchy_clustering(vocab_embedding: np.array, k: int = 5) -> np.array:
+        """
+        Visualize the hierarchy of the embeddings.
+        """
+        x = vocab_embedding[:, 0]
+        y = vocab_embedding[:, 1]
+        points = np.vstack((x, y)).T
+
+        # Use scikit-learn's NearestNeighbors to find k nearest neighbors
+        nn = NearestNeighbors(n_neighbors=k + 1, metric='euclidean')
+        nn.fit(points)
+        distances, indices = nn.kneighbors(points)
+
+        # Create a graph using networkx
+        G = nx.Graph()
+        for i in range(indices.shape[0]):
+            for j in range(1, indices.shape[1]):  # start from 1 to skip self-loop
+                G.add_edge(i, indices[i, j], weight=distances[i, j])
+
+        # Perform Spectral Clustering
+        clustering = SpectralClustering(n_clusters=5, assign_labels="discretize", random_state=0).fit(points)
+        return clustering.labels_
+
+    def visualize_hierarchy(self, vocab_embedding: np.array, k: int = 5):
+        """
+        Visualize the hierarchy of the embeddings.
+        """
+        clusters = self.hierarchy_clustering(vocab_embedding, k)
+        points = np.vstack((vocab_embedding[:, 0], vocab_embedding[:, 1])).T
+        # Define colors for each cluster
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+
+        fig = go.Figure()
+        for cluster_label in np.unique(clusters):
+            cluster_points = points[clusters == cluster_label]
+            fig.add_trace(go.Scatter(x=cluster_points[:, 0], y=cluster_points[:, 1],
+                                     mode='markers',
+                                     name=f'Cluster {cluster_label + 1}',
+                                     marker=dict(color=colors[cluster_label], size=7)))  # Regular cluster points
+
+        # Customize the figure layout
+        # Add the cross of the origin and abscissa axes
+        fig.add_shape(type="line", x0=-1, y0=0, x1=1, y1=0, line=dict(color="Black", width=0.2))
+        fig.add_shape(type="line", x0=0, y0=-1, x1=0, y1=1, line=dict(color="Black", width=0.2))
+        # Add a grid and customize its appearance
+        fig.update_xaxes(showgrid=True, gridwidth=0.3, gridcolor='Grey')
+        fig.update_yaxes(showgrid=True, gridwidth=0.3, gridcolor='Grey')
+        # Change the background color to white
+        fig.update_layout(plot_bgcolor='white')
+        # Set the axes' limits
+        fig.update_xaxes(range=[-1, 1])
+        fig.update_yaxes(range=[-1, 1])
+        # add a grid and customize its appearance
+        fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='LightPink')
+        # Ensure the aspect ratio is equal
+        fig.update_layout(xaxis=dict(scaleanchor="y", scaleratio=1),
+                          title="Poincaré Embeddings for 1980",
+                          showlegend=False)
+        # Show the plot
+        fig.show()
 
     def visualize_embeddings(self, word: str):
         """
@@ -92,7 +186,8 @@ class InferPoincareEmbeddings:
 
         # Then plot "network.n.01" separately, ensuring it doesn't rely on embeddings_2d_transformed
         # This assumes network_n01_embedding_2d is computed correctly, outside the loop
-        plt.scatter(network_n01_embedding_2d[0], network_n01_embedding_2d[1], color='red', alpha=0.4, s=300, label="network")
+        plt.scatter(network_n01_embedding_2d[0], network_n01_embedding_2d[1], color='red', alpha=0.4, s=300,
+                    label="network")
         plt.annotate("network", (network_n01_embedding_2d[0], network_n01_embedding_2d[1]))
 
         year = self._model_path.split("/")[-2].split("_")[0]
