@@ -15,12 +15,57 @@ from pathlib import Path
 import srsly
 import random
 from dotenv import load_dotenv
+import matplotlib.pyplot as plt
+import networkx as nx
+from sklearn.manifold import TSNE
+import numpy as np
+from scipy.spatial.distance import euclidean
+import itertools
 
 load_dotenv()
 
+
+def plot_combined_hierarchy(periods_data, target_word):
+    G = nx.DiGraph()
+    pos = {}
+    layer_y = 0
+    max_width = max(len(senses) for senses in periods_data.values())
+
+    # Position the target word at the top
+    pos[target_word] = (max_width / 2, layer_y)
+    G.add_node(target_word)
+    layer_y -= 1
+
+    # Assign positions for each sense in each period to create layers
+    for period, senses in periods_data.items():
+        layer_width = len(senses)
+        start_x = (max_width - layer_width) / 2
+
+        for i, (sense, rank) in enumerate(sorted(senses.items(), key=lambda x: x[1])):
+            G.add_node(f"{sense}\n({period})")
+            G.add_edge(target_word, f"{sense}\n({period})", weight=1 / rank)
+            pos[f"{sense}\n({period})"] = (start_x + i, layer_y)
+        layer_y -= 1
+
+    plt.figure(figsize=(12, 8))
+    nx.draw(G, pos, with_labels=True, node_size=2000, arrows=False,
+            node_color='skyblue', font_size=10, font_weight='bold', alpha=0.8)
+    plt.title(f"Evolution of Senses for '{target_word}' Across Periods")
+    plt.axis('off')  # Turn off the axis for better presentation
+    plt.show()
+
+
 if __name__ == "__main__":
     # Running the framework:
+    # Train Poincare embeddings dim 2:
+    # TrainPoincareEmbeddings(
+    #     data_path=os.path.join(os.getenv("TRAIN"), "1980_hwe.tsv")
+    # ).train_2d()
+
     root_folder = os.path.join(os.getenv("HWE_FOLDER"), "packages")
-    sim = InferPoincareEmbeddings(
-        model_dir=os.path.join(root_folder, "1980_poincare_gensim")
-    ).test_visualize()
+    embeddings = InferPoincareEmbeddings(
+        model_dir=os.path.join(root_folder, "1980_poincare_gensim_2d")
+    )
+    vocab_embeddings = embeddings.model.kv.vocab
+
+
