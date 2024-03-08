@@ -29,9 +29,34 @@ class TrainPoincareEmbeddings:
         model_cfg["train_data"] = relations  # Directly assign relations to model_cfg
 
         # Initialize PoincareModel
+        self.model_cfg = model_cfg
         self.model = PoincareModel(**model_cfg)
         self.train_cfg = config["train"]
         self.model_cfg = model_cfg
+
+    def train_2d(self):
+        """
+        Train the Poincare model with 2 dimensions
+        """
+        self.model_cfg["size"] = 2
+        model_2d = PoincareModel(**self.model_cfg)
+        model_2d.train(**self.train_cfg)
+        root_folder = os.getenv("HWE_FOLDER")
+        packages = os.path.join(root_folder, "packages")
+        if not os.path.exists(packages):
+            os.makedirs(packages)
+
+        model_name = f"{self.year}_poincare_gensim_2d"
+        model_path = os.path.join(packages, model_name)
+        if not os.path.exists(model_path):
+            os.makedirs(model_path)
+
+        # save the model:
+        model_2d.save(os.path.join(
+            model_path,
+            f"{model_name}_epochs_{self.train_cfg['epochs']}_neg_{self.model_cfg['negative']}_2d.model"
+        ))
+
 
     def train(self):
         """
