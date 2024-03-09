@@ -1,8 +1,8 @@
 import os
-
+import pandas as pd
 from PIL import Image, ImageEnhance, ImageFilter
 from typing import Optional
-from transformers import PreTrainedTokenizer
+# from transformers import PreTrainedTokenizer
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 def cutDoc(
         main_word: str,
-        tokenizer: PreTrainedTokenizer,
+        tokenizer,
         doc: Optional[str] = None,
         max_length: int = 120,
 ) -> Optional[str]:
@@ -135,3 +135,132 @@ def binarization(img_path: str) -> None:
     img = Image.open(img_path)
     img = img.convert("1")
     img.save(f"{img_path}-binarized.jpg")
+
+
+def percentages_to_floats(data):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            data[key] = percentages_to_floats(value)
+    elif isinstance(data, list):
+        if all(isinstance(v, int) for v in data):
+            return [v / 100.0 for v in data]
+    return data
+
+
+
+def fix_proportions(data, target):
+
+    senses = data[target]["senses"]
+    periods = 5
+    for sense, sense_data in senses.items():
+        proportion = sense_data["proportion"]
+        subsenses = sense_data["subsenses"]
+
+        for period in range(periods):
+            p = proportion[period]
+            if p == 0:
+                number_of_children = 0
+            
+            else:
+                for subsense, subsense_data in subsenses.items():
+                    sub_p = subsense_data["proportion"][period]
+                    if sub_p == 0:
+                        subsense_data["proportion"][period] = 0
+                    else:
+                        subsense_data["proportion"][period] = sub_p / p
+
+        
+
+
+
+def get_attended(data, subsenses, period):
+    data = data[str(period)]
+
+    attended = {}
+    for subsense in subsenses:
+        attended[subsense] = []
+        for d in data:
+            if subsense in d:
+                att = d.split(" - ")
+                try:
+                    att.remove(subsense)
+                    attended[subsense].extend(att)
+                
+                except:
+                    print(d, subsense, att)
+                
+
+        if len(attended[subsense]) > 0:
+            attended[subsense] = list(set(attended[subsense]))
+        
+        else:
+            attended.pop(subsense)
+    
+    return attended
+
+
+
+def get_Dataset(data, target, period):
+    senses: dict = data[target]["senses"]
+    sense_list = list(senses.keys())
+
+    pairs = {}
+    periods = [1980,1990,2000,2010,2017]
+
+    for p in range(len(periods)):
+        if periods[p] != period:
+            continue
+        pairs[periods[p]] = []
+        for sense in sense_list:
+            sense_data: dict = senses[sense]
+            subsenses: dict = sense_data["subsenses"]
+            subsense_list = list(subsenses.keys())
+
+            for subsense in subsense_list:
+                subsense_data: dict = subsenses[subsense]
+                children = subsense_data["children"][p]
+
+                if children == 0:
+                    continue
+
+                for child in children:
+                    s = sense
+                    ss = subsense
+                    c = child
+                    t = target
+
+                    leafs = [
+                        {"child": s, "parent": t},
+                        {"child": ss, "parent": s},
+                        {"child": c, "parent": ss}
+                    ]
+                    # leafs = [(s,t), (ss,s), (c,ss)]
+                    pairs[periods[p]].extend(leafs)
+    
+    df = pd.DataFrame(pairs[period], columns=["child", "parent"])
+    return df
+
+
+
+if __name__ == "__main__":
+    import json
+
+  
+    target = "network"
+    with open(f"input/network.json", "r") as f:
+        data = json.load(f)
+    
+    period = 2017
+    df = get_Dataset(data, target, period)
+
+    print(df.head())
+
+    print(df.shape)
+
+    print(df.drop_duplicates().shape)
+    df = df.drop_duplicates()
+
+    df.to_csv(f"input/{target}_{period}.tsv", index=False, sep="\t", header=False)
+
+
+   
