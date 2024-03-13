@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from PIL import Image, ImageEnhance, ImageFilter
-from typing import Optional
+from typing import Optional, final
 # from transformers import PreTrainedTokenizer
 from typing import Optional, List
 from transformers import PreTrainedTokenizer
@@ -245,7 +245,7 @@ def get_Dataset(data, target, period):
 
 
 
-def joinTsv(paths: List[str]):
+def joinTsv(paths: List[str], senses: List[str] = None, subsenses: List[str] = None, periods: int = None, target: str = None):
     """
     Join tsv files
 
@@ -253,10 +253,37 @@ def joinTsv(paths: List[str]):
         paths (List[str]): The paths to the tsv files.
     """
     import pandas as pd
-    df = pd.concat([pd.read_csv(path, sep='\t') for path in paths])
+    if any([senses is None, subsenses is None, periods is None, target is None]):
+        final_df = pd.concat([pd.read_csv(path, sep='\t') for path in paths])
     
-    return df
+    else:
+        final_df = pd.DataFrame()
 
+        for i, period in enumerate(periods):
+            df = pd.read_csv(paths[i], sep='\t', header=None, names=["child", "parent"])
+
+            for _, row in df.iterrows():
+                if row['child'] in senses:
+                    row['child'] += f".s.{period}"
+                
+                elif row['child'] in subsenses:
+                    row['child'] += f".ss.{period}"
+                
+                if row['parent'] in senses:
+                    row['parent'] += f".s.{period}"
+                
+                elif row['parent'] in subsenses:
+                    row['parent'] += f".ss.{period}"
+                
+                if row['parent'] == target:
+                    row['parent'] += f".t.{period}"
+                
+            final_df = pd.concat([final_df, df])
+    return final_df
+
+
+def annotate(text, annot):
+    return text + f".{annot}"
 
 
 

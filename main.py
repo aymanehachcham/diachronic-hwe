@@ -68,19 +68,22 @@ if __name__ == "__main__":
     senses = list(schema["network"]["senses"].keys())
     subsenses = list(itertools.chain(*[list(sense["subsenses"].keys()) for sense in schema["network"]["senses"].values()]))
 
-    print(senses)
-    print('\n')
-    print(subsenses)
-
-    exit()
 
     periods = [1980,1990,2000,2010, 2017]
     file_name = "network_{}.tsv"
 
     paths = [os.path.join(os.getenv("TRAIN"), file_name.format(period)) for period in periods]
 
-    data = joinTsv(paths, annotate = periods, )
-    data.to_csv(os.path.join(os.getenv("TRAIN"), "network_all.tsv"), sep="\t", index=False)
+    data = joinTsv(
+        paths= paths,
+        senses=senses,
+        subsenses=subsenses,
+        periods=periods,
+        target="network"
+        )
+
+
+    data.to_csv(os.path.join(os.getenv("TRAIN"), "network_all.tsv"), sep="\t", index=False, header=False)
 
     TrainPoincareEmbeddings(
         data_path=os.path.join(os.getenv("TRAIN"), "network_all.tsv")
