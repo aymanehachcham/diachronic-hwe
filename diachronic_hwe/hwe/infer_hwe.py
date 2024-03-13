@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 import srsly
-from typing import List
+from typing import List, Tuple
 from gensim.models.poincare import PoincareModel, PoincareKeyedVectors
 from .train_hwe import TrainPoincareEmbeddings
 import matplotlib.pyplot as plt
@@ -14,6 +14,8 @@ from sklearn.cluster import SpectralClustering
 from sklearn.neighbors import NearestNeighbors
 import networkx as nx
 import plotly.graph_objects as go
+from scipy.spatial.distance import cdist
+from queue import Queue
 
 
 load_dotenv()
@@ -42,12 +44,21 @@ class InferPoincareEmbeddings:
 
         self.model = PoincareModel.load(self._model_path)
 
-    def vocab_embeddings(self) -> np.array:
+    def vocab_embeddings(self, vocab: List[str] = None) -> Tuple:
         """
         Extract all vocab embeddings
         """
+        if vocab:
+            return np.array([self.extracting_embeddings(k) for k in vocab]), vocab
+
         words = [k for k, v in self.model.kv.key_to_index.items()]
-        return np.array([self.extracting_embeddings(k) for k in words])
+        return np.array([self.extracting_embeddings(k) for k in words]), words
+
+    def get_vocab(self) -> List:
+        """
+        Get the vocabulary of the model.
+        """
+        return [k for k, v in self.model.kv.key_to_index.items()]
 
     def extracting_embeddings(self, word: str) -> List:
         """
@@ -98,46 +109,114 @@ class InferPoincareEmbeddings:
                 G.add_edge(i, indices[i, j], weight=distances[i, j])
 
         # Perform Spectral Clustering
-        clustering = SpectralClustering(n_clusters=5, assign_labels="discretize", random_state=0).fit(points)
+        clustering = SpectralClustering(n_clusters=k+1, assign_labels="discretize", random_state=0).fit(points)
         return clustering.labels_
 
-    def visualize_hierarchy(self, vocab_embedding: np.array, k: int = 5):
+    def overlapped_clusters(self, clusters_a: List[List[str]], clusters_b: List[List[str]]) -> List[List[str]]:
+        """
+        Find the best overlapping clusters from clusters_b for each cluster in clusters_a
+        and return a new list of clusters from clusters_b that best match each cluster in clusters_a.
+        """
+        # Initialize a list to store the best match for each cluster in clusters_a
+        best_matches = []
+
+        for cluster_a in clusters_a:
+            best_match_index = None
+            best_match_count = -1
+
+            for j, cluster_b in enumerate(clusters_b):
+                overlap_count = len(set(cluster_a) & set(cluster_b))  # Count of common words
+
+                if overlap_count > best_match_count:
+                    best_match_count = overlap_count
+                    best_match_index = j
+
+            # Store the best matching cluster's index
+            best_matches.append(best_match_index)
+
+        # Form the new clusters list based on the best matches
+        transformed_clusters = [clusters_b[idx] if idx is not None else [] for idx in best_matches]
+
+        return transformed_clusters
+
+    def visualize_hierarchy(self, vocab: List, vocab_embedding: np.array, k: int = 4):
         """
         Visualize the hierarchy of the embeddings.
         """
         clusters = self.hierarchy_clustering(vocab_embedding, k)
         points = np.vstack((vocab_embedding[:, 0], vocab_embedding[:, 1])).T
         # Define colors for each cluster
-        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        colors = ['blue', 'magenta', 'cyan', 'green', 'orange']
+        print(len(vocab), clusters.shape)
 
         fig = go.Figure()
-        for cluster_label in np.unique(clusters):
-            cluster_points = points[clusters == cluster_label]
-            fig.add_trace(go.Scatter(x=cluster_points[:, 0], y=cluster_points[:, 1],
-                                     mode='markers',
-                                     name=f'Cluster {cluster_label + 1}',
-                                     marker=dict(color=colors[cluster_label], size=7)))  # Regular cluster points
+        center = np.array([0, 0])
+        # Plot each cluster
+        for i in np.unique(clusters):
+            cluster_points = points[clusters == i]
+            cluster_vocab = [vocab[j] for j in np.where(clusters == i)[0]]  # Extract vocab for current cluster
+            if len(cluster_points) == 0:
+                continue
+
+            # Compute distances from the center to all points in the cluster
+            distances = np.linalg.norm(cluster_points - center, axis=1)
+            sorted_indices = np.argsort(distances)
+
+            # Determine point sizes based on distance, larger sizes for points closer to the center
+            max_size, min_size = 30, 8
+            sizes = max_size - (
+                    (distances - distances.min()) / (distances.max() - distances.min()) * (max_size - min_size))
+
+            # Use a queue to iteratively connect points starting from the one closest to the center
+            q = Queue()
+            visited = set()
+            q.put(sorted_indices[0])
+
+            while not q.empty():
+                current = q.get()
+                if current in visited:
+                    continue
+
+                visited.add(current)  # Mark current as visited
+                current_point = cluster_points[current]
+
+                # Find and plot edges to nearest unvisited neighbors
+                unvisited_indices = [idx for idx in sorted_indices if idx not in visited]
+                if unvisited_indices:
+                    distances_to_current = cdist(cluster_points[unvisited_indices], np.array([current_point]))
+                    nearest_to_current_idx = unvisited_indices[np.argmin(distances_to_current)]
+                    nearest_point = cluster_points[nearest_to_current_idx]
+
+                    # Plot edge
+                    fig.add_trace(
+                        go.Scatter(x=[current_point[0], nearest_point[0]], y=[current_point[1], nearest_point[1]],
+                                   mode='lines', line=dict(color=colors[i % len(colors)], width=1)))
+                    q.put(nearest_to_current_idx)
+
+            # Plot the points in the cluster with variable sizes and hover text
+            fig.add_trace(go.Scatter(x=cluster_points[:, 0], y=cluster_points[:, 1], mode='markers',
+                                     marker=dict(size=sizes, color=colors[i % len(colors)],
+                                                 line=dict(width=2, color='DarkSlateGrey')),
+                                     text=cluster_vocab, hoverinfo='text', name=f'Cluster {i + 1}'))
+
+        # Highlight the center with a large marker
+        fig.add_trace(go.Scatter(x=[0], y=[0], mode='markers', marker=dict(size=10, color='black'), name='Center'))
 
         # Customize the figure layout
-        # Add the cross of the origin and abscissa axes
+        # Add cross of origin and customize appearance
         fig.add_shape(type="line", x0=-1, y0=0, x1=1, y1=0, line=dict(color="Black", width=0.2))
         fig.add_shape(type="line", x0=0, y0=-1, x1=0, y1=1, line=dict(color="Black", width=0.2))
-        # Add a grid and customize its appearance
-        fig.update_xaxes(showgrid=True, gridwidth=0.3, gridcolor='Grey')
-        fig.update_yaxes(showgrid=True, gridwidth=0.3, gridcolor='Grey')
-        # Change the background color to white
-        fig.update_layout(plot_bgcolor='white')
-        # Set the axes' limits
-        fig.update_xaxes(range=[-1, 1])
-        fig.update_yaxes(range=[-1, 1])
-        # add a grid and customize its appearance
+        # Add and customize grid appearance
         fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='LightPink')
-        # Ensure the aspect ratio is equal
-        fig.update_layout(xaxis=dict(scaleanchor="y", scaleratio=1),
-                          title="Poincaré Embeddings for 1980",
+        fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='LightPink')
+        # Change background color and set axes' limits
+        fig.update_layout(plot_bgcolor='white', xaxis=dict(range=[-1, 1], scaleanchor="y", scaleratio=1),
+                          yaxis=dict(range=[-1, 1]),
+                          title="Poincaré Embeddings Hierarchy",
                           showlegend=False)
-        # Show the plot
         fig.show()
+        # Show the plot
+        # fig.write_image("./1990_solo.png", width=800, height=800)
 
     def visualize_embeddings(self, word: str):
         """
@@ -216,7 +295,7 @@ class InferPoincareEmbeddings:
                 similar[idx] = (sim[0], sim[1])
 
         # return only the words from similar:
-        return [sim[1] for sim in similar]
+        return [sim[0] for sim in similar]
 
     def rank_senses(self, word: str):
         """
