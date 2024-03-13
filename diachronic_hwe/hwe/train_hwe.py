@@ -17,7 +17,7 @@ class TrainPoincareEmbeddings:
             raise ValueError("The data path should be a TSV file.")
 
         self.data_path_name = os.path.basename(data_path)
-        self.year = self.data_path_name.split("_")[0]
+        self.year = self.data_path_name.split("_")[1].split(".")[0]
 
         # Load configuration and prepare model configuration
         config_path = find_closest("diachronic_hwe/hwe/config/config.toml")

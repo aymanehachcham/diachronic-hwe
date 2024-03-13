@@ -15,3 +15,4 @@ samples_compressed/*
 words/*
 output/
 input/
+*.tsv

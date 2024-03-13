@@ -3,6 +3,8 @@ import pandas as pd
 from PIL import Image, ImageEnhance, ImageFilter
 from typing import Optional
 # from transformers import PreTrainedTokenizer
+from typing import Optional, List
+from transformers import PreTrainedTokenizer
 import logging
 
 logger = logging.getLogger(__name__)
@@ -242,6 +244,22 @@ def get_Dataset(data, target, period):
 
 
 
+
+def joinTsv(paths: List[str]):
+    """
+    Join tsv files
+
+    Args:
+        paths (List[str]): The paths to the tsv files.
+    """
+    import pandas as pd
+    df = pd.concat([pd.read_csv(path, sep='\t') for path in paths])
+    
+    return df
+
+
+
+
 if __name__ == "__main__":
     import json
 
@@ -264,3 +282,9 @@ if __name__ == "__main__":
 
 
    
+
+
+
+
+
+
