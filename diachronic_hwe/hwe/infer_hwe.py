@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 import srsly
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from gensim.models.poincare import PoincareModel, PoincareKeyedVectors
 from .train_hwe import TrainPoincareEmbeddings
 import matplotlib.pyplot as plt
@@ -16,6 +16,9 @@ import networkx as nx
 import plotly.graph_objects as go
 from scipy.spatial.distance import cdist
 from queue import Queue
+from itertools import cycle
+from scipy.interpolate import CubicSpline
+from matplotlib.lines import Line2D
 
 
 load_dotenv()
@@ -138,6 +141,74 @@ class InferPoincareEmbeddings:
         transformed_clusters = [clusters_b[idx] if idx is not None else [] for idx in best_matches]
 
         return transformed_clusters
+
+    @staticmethod
+    def visualize_sense_distribution(senses: Dict = None) -> None:
+        """
+            Interpolates hierarchical distances for each sense using cubic splines
+            and plots the results.
+
+            Parameters:
+            - years: List of years corresponding to the hierarchical distances.
+            - senses: Dictionary with senses as keys and lists of hierarchical distances as values.
+            """
+        # Generate a dense set of x values for a smooth plot
+        years = [1980, 1990, 2000, 2010, 2017]
+        inner_senses = {
+            'interconnected_system': [30.26, 45.38, 52.95, 37.82, 45.38],
+            'broadcasting_system': [43.13, 37.74, 26.96, 43.13, 47.45],
+            'electronics_system': [20.97, 17.48, 13.98, 6.99, 4.19],
+            'group_communication': [17.03, 17.03, 34.06, 42.58, 34.06]
+        }
+        if senses:
+            inner_senses = senses
+
+        plt.figure(figsize=(10, 6))
+
+        # Generate a dense set of x values for a smooth plot
+        x_dense = np.linspace(min(years), max(years), 500)
+
+        # Define markers for each sense
+        markers = ['x', '^', 'o', 's', 'd']  # Extend this list if you have more senses
+        marker_cycle = cycle(markers)  # Cycle through the marker list
+        colors = ['green', 'red', 'purple', 'orange']
+        color_cycle = cycle(colors)
+
+        legend_elements = []
+        for sense, distances in inner_senses.items():
+            # Interpolate using cubic spline
+            distances = list(map(lambda x: round(x/100, 2), distances))
+            cs = CubicSpline(years, distances)
+            # Evaluate the spline over the dense set of x values
+            y_spline = cs(x_dense)
+
+            # Get the next marker from the cycle
+            marker = next(marker_cycle)
+            color = next(color_cycle)
+
+            plt.plot(x_dense, y_spline, linestyle='--', label=sense, color=color)
+            plt.scatter(years, distances, marker=marker, color=color)  # Plot original data points with specified marker
+            # Create a custom legend entry for this sense
+            legend_elements.append(Line2D([0], [0], marker=marker, color='w', label=sense,
+                                          markerfacecolor=color, markersize=10, markeredgewidth=2))
+
+        # Customizing the plot
+        plt.title('Hierarchical Sense Distribution Over Time (Cubic Spline Interpolation)')
+        plt.xlabel('Year')
+        plt.ylabel('Hierarchical Distance')
+        plt.legend(
+            handles=legend_elements,
+            loc='upper center',
+            bbox_to_anchor=(0.5, -0.1),
+            ncol=1,
+            fancybox=True,
+            shadow=True
+        )
+        plt.tight_layout()
+        plt.grid(True)
+
+        # Show plot
+        plt.show()
 
     def visualize_hierarchy(self, vocab: List, vocab_embedding: np.array, k: int = 4):
         """

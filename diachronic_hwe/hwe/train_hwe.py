@@ -17,7 +17,7 @@ class TrainPoincareEmbeddings:
             raise ValueError("The data path should be a TSV file.")
 
         self.data_path_name = os.path.basename(data_path)
-        self.year = self.data_path_name.split("_")[0]
+        self.year = self.data_path_name.split("_")[1].split(".")[0]
 
         # Load configuration and prepare model configuration
         config_path = find_closest("diachronic_hwe/hwe/config/config.toml")
@@ -46,7 +46,7 @@ class TrainPoincareEmbeddings:
         if not os.path.exists(packages):
             os.makedirs(packages)
 
-        model_name = f"{self.year}_poincare_gensim_2d"
+        model_name = f"{self.year}_poincare_gensim_2d_network"
         model_path = os.path.join(packages, model_name)
         if not os.path.exists(model_path):
             os.makedirs(model_path)
