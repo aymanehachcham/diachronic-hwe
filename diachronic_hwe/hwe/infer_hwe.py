@@ -76,7 +76,7 @@ class InferPoincareEmbeddings:
         for _ in range(n_samples):
             # Randomly choose an index to scale and perturb
             idx = np.random.randint(0, len(x))
-            new_x = x[idx] * (1 + np.random.uniform(-scale_factor, scale_factor))
+            new_x = x   [idx] * (1 + np.random.uniform(-scale_factor, scale_factor))
             new_y = y[idx] * (1 + np.random.uniform(-scale_factor, scale_factor))
 
             # Add noise
@@ -154,15 +154,15 @@ class InferPoincareEmbeddings:
             """
         # Generate a dense set of x values for a smooth plot
         years = [1980, 1990, 2000, 2010, 2017]
-        inner_senses = {
-            'interconnected_system': [30.26, 45.38, 52.95, 37.82, 45.38],
-            'broadcasting_system': [43.13, 37.74, 26.96, 43.13, 47.45],
-            'electronics_system': [20.97, 17.48, 13.98, 6.99, 4.19],
-            'group_communication': [17.03, 17.03, 34.06, 42.58, 34.06]
-        }
-        if senses:
-            inner_senses = senses
-
+        # inner_senses = {
+        #     'interconnected_system': [30.26, 45.38, 52.95, 37.82, 45.38],
+        #     'broadcasting_system': [43.13, 37.74, 26.96, 43.13, 47.45],
+        #     'electronics_system': [20.97, 17.48, 13.98, 6.99, 4.19],
+        #     'group_communication': [17.03, 17.03, 34.06, 42.58, 34.06]
+        # }
+        # if senses:
+        #     inner_senses = senses
+        inner_senses = senses
         plt.figure(figsize=(10, 6))
 
         # Generate a dense set of x values for a smooth plot
@@ -171,13 +171,13 @@ class InferPoincareEmbeddings:
         # Define markers for each sense
         markers = ['x', '^', 'o', 's', 'd']  # Extend this list if you have more senses
         marker_cycle = cycle(markers)  # Cycle through the marker list
-        colors = ['green', 'red', 'purple', 'orange']
+        colors = ['cyan', 'magenta', 'green', 'orange']
         color_cycle = cycle(colors)
 
         legend_elements = []
         for sense, distances in inner_senses.items():
             # Interpolate using cubic spline
-            distances = list(map(lambda x: round(x/100, 2), distances))
+            # distances = list(map(lambda x: round(x/100, 2), distances))
             cs = CubicSpline(years, distances)
             # Evaluate the spline over the dense set of x values
             y_spline = cs(x_dense)
@@ -189,7 +189,7 @@ class InferPoincareEmbeddings:
             plt.plot(x_dense, y_spline, linestyle='--', label=sense, color=color)
             plt.scatter(years, distances, marker=marker, color=color)  # Plot original data points with specified marker
             # Create a custom legend entry for this sense
-            legend_elements.append(Line2D([0], [0], marker=marker, color='w', label=sense,
+            legend_elements.append(Line2D([0], [0], marker=marker, color=color, label=sense,
                                           markerfacecolor=color, markersize=10, markeredgewidth=2))
 
         # Customizing the plot
