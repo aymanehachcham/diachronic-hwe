@@ -1,6 +1,6 @@
 # Hierarchical Word Embeddings for Modeling Semantic Shift
 
-![Diachronic Word Embeddings](images/diac.png)
+![Diachronic Word Embeddings](images/bg-khawarizmi.png)
 
 ## Overview
 This repository contains the implementation and datasets for modeling semantic shifts in language using hierarchical word embeddings. Our approach leverages Poincaré Embeddings to capture the nuanced relationships between words over time, with a specific focus on the lexical changes as observed in the New York Times newspaper articles.
